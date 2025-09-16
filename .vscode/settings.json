@@ -1,0 +1,18 @@
+{
+    "editor.tabSize": 2,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.formatting": "clangFormat",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--all-scopes-completion",
+        "--background-index",
+        "--background-index-priority=background",
+        "--clang-tidy",
+        "--completion-style=bundled",
+        "--header-insertion=iwyu",
+        "--pch-storage=disk",
+        "-j=8"
+    ],
+    "cmake.exportCompileCommandsFile": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+}

@@ -1,0 +1,51 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Conan: Detect Profile",
+            "type": "shell",
+            "command": "conan",
+            "args": [
+                "profile",
+                "detect",
+                "--force"
+            ],
+            "group": "build",
+        },
+        {
+            "label": "Conan: Install Dependency [Debug]",
+            "type": "shell",
+            "command": "conan",
+            "args": [
+                "install",
+                "--settings='build_type=Debug'",
+                ".",
+                "--build=missing"
+            ],
+            "group": "build",
+        },
+        {
+            "label": "Conan: Install Dependency [Release]",
+            "type": "shell",
+            "command": "conan",
+            "args": [
+                "install",
+                "--settings='build_type=Release'",
+                ".",
+                "--build=missing"
+            ],
+            "group": "build",
+        },
+        {
+            "label": "Conan: Install Dependency [Debug & Release]",
+            "group": "build",
+            "dependsOn": [
+                "Conan: Install Dependency [Debug]",
+                "Conan: Install Dependency [Release]",
+            ],
+            "dependsOrder": "sequence"
+        },
+    ],
+}

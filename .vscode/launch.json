@@ -1,0 +1,23 @@
+{
+    "configurations": [
+      {
+        "name": "Launch CMake Target (VS Dbg)",
+        "type": "cppvsdbg",
+        "request": "launch",
+        "program": "${command:cmake.launchTargetPath}",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "console": "integratedTerminal"
+      },
+      {
+        "type": "lldb",
+        "request": "launch",
+        "name": "Launch CMake Target (LLDB)",
+        "program": "${command:cmake.launchTargetPath}",
+        "args": [],
+        "cwd": "${workspaceFolder}"
+      }
+    ],
+  }
