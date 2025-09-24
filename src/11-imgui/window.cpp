@@ -57,11 +57,12 @@ Window::Window(int width, int height, const std::string &title)
 
   // Request an OpenGL 4.2 core profile context
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-  glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_TRUE);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-
+// #ifndef __APPLE__
+  glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_TRUE);
+// #endif
   m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
   if (!m_window) {
     glfwTerminate();
@@ -80,11 +81,12 @@ Window::Window(int width, int height, const std::string &title)
   });
 
   glfwMakeContextCurrent(m_window);
-  glbinding::initialize(glfwGetProcAddress);
+  glbinding::initialize(glfwGetProcAddress,false);
 
   fmt::println("OpenGL Version: {}",
                glbinding::aux::ContextInfo::version().toString());
 
+#ifndef __APPLE__
   // disable all debug message here
   glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr,
                         GL_FALSE);
@@ -102,6 +104,7 @@ Window::Window(int width, int height, const std::string &title)
             source, type, id, severity, message);
       },
       nullptr);
+#endif
 
   glbinding::aux::enableGetErrorCallback();
 

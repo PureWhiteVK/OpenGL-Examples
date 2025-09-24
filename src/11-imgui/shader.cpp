@@ -86,7 +86,7 @@ Shader::Shader(const char *vertex_shader_source,
 
   const GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
   glShaderSource(fragment_shader, 1, &fragment_shader_source, nullptr);
-  GUARD_EXIT({ glDeleteShader(vertex_shader); });
+  GUARD_EXIT({ glDeleteShader(fragment_shader); });
   glCompileShader(fragment_shader);
   if (!check_shader_compile_status(fragment_shader)) {
     return;

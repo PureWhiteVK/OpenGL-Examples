@@ -262,7 +262,7 @@ int main() {
   });
 
   GLuint test_vao{};
-  glCreateVertexArrays(1, &test_vao);
+  glGenVertexArrays(1, &test_vao);
   GUARD_EXIT({ glDeleteVertexArrays(1, &test_vao); });
 
   Shader point_shader{vertex_shader_text, fragment_shader_text};

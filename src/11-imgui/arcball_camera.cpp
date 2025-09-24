@@ -72,7 +72,7 @@ ArcBallCamera::ArcBallCamera(const glm::vec3 world_up) : m_world_up(world_up) {
   m_mesh_shader = Shader(vertex_shader_text, fragment_shader_text);
   assert(m_mesh_shader.get_program_id() != 0);
   float range[2];
-  glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, range);
+  glGetFloatv(GL_POINT_SIZE_RANGE, range);
   fmt::println("Point Size range: {},{}", range[0], range[1]);
   glEnable(GL_PROGRAM_POINT_SIZE);
 }
