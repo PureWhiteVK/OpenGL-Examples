@@ -22,7 +22,7 @@ public:
 protected:
   void window_callback(Window &window) override;
 
-private:
+public:
   glm::vec3 m_view_center{0.0f, 0.0f, 0.0f};
   const glm::vec3 m_world_up{};
   float m_radius{5.0f};

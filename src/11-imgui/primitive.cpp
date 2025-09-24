@@ -274,34 +274,35 @@ std::unique_ptr<LineLoops> get_circle_primitive(int subdivide_level) {
   return loops;
 }
 
-std::unique_ptr<Mesh> get_cone_primitive(int subdivide_level) {
+std::unique_ptr<Mesh> get_polygon_cone_primitive(int subdivide_level) {
   std::vector<glm::dvec2> initial_vertices{};
   get_subdivide_circles(subdivide_level, initial_vertices);
   glm::vec3 center_coord = {0.0f, 0.0f, -1.0f};
   glm::vec3 apex_coord = {0.0f, 0.0f, 1.0f};
   std::vector<Vertex> vertices{};
+  uint32_t center_idx = vertices.size();
   vertices.emplace_back(Vertex{center_coord, glm::vec3{0.0f, 0.0f, -1.0f}});
   std::vector<uint32_t> indices{};
-  uint32_t center_coord_idx = 0;
 
   for (int i = 0; i < initial_vertices.size(); i++) {
     glm::dvec2 &dv0 = initial_vertices[i];
     glm::dvec2 &dv1 = initial_vertices[(i + 1) % (initial_vertices.size())];
     glm::vec3 v0 = {dv0.x, dv0.y, -1.0f};
     glm::vec3 v1 = {dv1.x, dv1.y, -1.0f};
+    glm::vec3 normal = glm::normalize(glm::cross(v1 - v0, apex_coord - v0));
     // calculate face normal for slope triangle
-    glm::vec3 normal1 = glm::cross(v1 - v0, v1 - apex_coord);
-    indices.emplace_back(vertices.size());
-    vertices.emplace_back(Vertex{v0, normal1});
-    indices.emplace_back(vertices.size());
-    vertices.emplace_back(Vertex{v1, normal1});
-    indices.emplace_back(vertices.size());
-    vertices.emplace_back(Vertex{apex_coord, normal1});
-    indices.emplace_back(vertices.size());
+    indices.emplace_back(static_cast<uint32_t>(vertices.size()));
+    vertices.emplace_back(Vertex{v0, normal});
+    indices.emplace_back(static_cast<uint32_t>(vertices.size()));
+    vertices.emplace_back(Vertex{v1, normal});
+    indices.emplace_back(static_cast<uint32_t>(vertices.size()));
+    vertices.emplace_back(Vertex{apex_coord, normal});
+    // bottom face
+    indices.emplace_back(static_cast<uint32_t>(vertices.size()));
     vertices.emplace_back(Vertex{v0, glm::vec3{0.0f, 0.0f, -1.0f}});
-    indices.emplace_back(vertices.size());
+    indices.emplace_back(static_cast<uint32_t>(vertices.size()));
     vertices.emplace_back(Vertex{v1, glm::vec3{0.0f, 0.0f, -1.0f}});
-    indices.emplace_back(center_coord_idx);
+    indices.emplace_back(center_idx);
   }
 
   std::unique_ptr<Mesh> m = std::make_unique<Mesh>();
@@ -315,45 +316,54 @@ std::unique_ptr<Mesh> get_cylinder_primitive(int subdivide_level) {
   get_subdivide_circles(subdivide_level, initial_vertices);
 
   std::vector<Vertex> vertices{};
-  vertices.resize(initial_vertices.size() * 2 + 2);
-  uint32_t bottom_idx = 2 * initial_vertices.size();
-  uint32_t top_idx = bottom_idx + 1;
+  vertices.reserve(initial_vertices.size() * 4 + 2);
   std::vector<uint32_t> indices{};
   for (int i = 0; i < initial_vertices.size(); i++) {
-    uint32_t i0 = i;
-    uint32_t i1 = (i + 1) % initial_vertices.size();
-    uint32_t i2 = i1 + initial_vertices.size();
-    uint32_t i3 = i0 + initial_vertices.size();
-    indices.emplace_back(bottom_idx);
+    int j = (i + 1) % (initial_vertices.size());
+    glm::dvec2 &dv0 = initial_vertices[i];
+    glm::dvec2 &dv1 = initial_vertices[j];
+
+    glm::vec3 v0 = {dv0.x, dv0.y, -1.0f};
+    glm::vec3 v2 = {dv0.x, dv0.y, 1.0f};
+    glm::vec3 n0 = {dv0.x, dv0.y, 0.0f};
+
+    vertices.emplace_back(Vertex{v0, n0});
+    vertices.emplace_back(Vertex{v2, n0});
+
+    uint32_t i0 = 2 * i;
+    uint32_t i2 = i0 + 1;
+    uint32_t i1 = 2 * j;
+    uint32_t i3 = i1 + 1;
+
     indices.emplace_back(i0);
     indices.emplace_back(i1);
-
-    indices.emplace_back(top_idx);
-    indices.emplace_back(i2);
     indices.emplace_back(i3);
 
     indices.emplace_back(i0);
-    indices.emplace_back(i1);
     indices.emplace_back(i3);
-
-    indices.emplace_back(i1);
     indices.emplace_back(i2);
-    indices.emplace_back(i3);
-
-    vertices[i0].pos = glm::vec3(initial_vertices[i0], -1.0f);
-    vertices[i0].normal = glm::vec3(initial_vertices[i0], 0.0f);
-    // vertices[i0].texcoord = glm::vec2((initial_vertices[i0].x + 1.0f) * 0.5f,
-    //                                   (initial_vertices[i0].y + 1.0f) *
-    //                                   0.5f);
-
-    vertices[i3].pos = glm::vec3(initial_vertices[i0], 1.0f);
-    vertices[i3].normal = glm::vec3(initial_vertices[i0], 0.0f);
-    // vertices[i3].texcoord = glm::vec2((initial_vertices[i0].x + 1.0f) * 0.5f,
-    //                                   (initial_vertices[i0].y + 1.0f) *
-    //                                   0.5f);
   }
-  vertices[bottom_idx] = (Vertex{{0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {}});
-  vertices[top_idx] = (Vertex{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {}});
+
+  std::unique_ptr<Mesh> disk_face = get_disk_primitive(subdivide_level);
+
+  uint32_t index_offset = vertices.size();
+  for (auto &v : disk_face->vertices) {
+    vertices.emplace_back(Vertex{v.pos + glm::vec3{0.0f, 0.0f, 1.0f},
+                                 glm::vec3{0.0f, 0.0f, 1.0f}});
+  }
+  for (auto i : disk_face->indices) {
+    indices.emplace_back(i + index_offset);
+  }
+
+  index_offset = vertices.size();
+  for (auto &v : disk_face->vertices) {
+    vertices.emplace_back(Vertex{v.pos + glm::vec3{0.0f, 0.0f, -1.0f},
+                                 glm::vec3{0.0f, 0.0f, -1.0f}});
+  }
+  for (auto i : disk_face->indices) {
+    indices.emplace_back(i + index_offset);
+  }
+
   std::unique_ptr<Mesh> m = std::make_unique<Mesh>();
   m->vertices = std::move(vertices);
   m->indices = std::move(indices);

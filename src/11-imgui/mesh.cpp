@@ -57,6 +57,12 @@ void Mesh::draw() {
                  GL_UNSIGNED_INT, 0);
 }
 
+void Mesh::copy(Mesh& mesh) {
+  mesh.destroy_buffer();
+  mesh.indices = this->indices;
+  mesh.vertices = this->vertices;
+}
+
 Mesh::~Mesh() {}
 
 std::vector<Mesh> load_obj_file(fs::path obj_file) {

@@ -14,7 +14,7 @@ std::unique_ptr<Mesh> get_simplex_disk_primitive(int subdivide_level);
 
 std::unique_ptr<LineLoops> get_circle_primitive(int subdivide_level);
 
-std::unique_ptr<Mesh> get_cone_primitive(int subdivide_level);
+std::unique_ptr<Mesh> get_polygon_cone_primitive(int subdivide_level);
 
 std::unique_ptr<Mesh> get_cylinder_primitive(int subdivide_level);
 

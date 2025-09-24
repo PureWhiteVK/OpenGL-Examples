@@ -20,6 +20,7 @@ public:
   void create_buffer() override;
   void destroy_buffer() override;
   void draw() override;
+  void copy(Mesh& mesh);
 
   Mesh() = default;
   ~Mesh() override;

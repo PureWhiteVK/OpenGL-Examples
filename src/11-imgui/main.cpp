@@ -14,6 +14,7 @@
 #include <glbinding/gl/functions.h>
 #include <glbinding/gl/types.h>
 #include <glm/ext.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/quaternion_common.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
@@ -124,17 +125,18 @@ int main() {
       {{0.5, 1.05, 1.0}}, {{0.0, 1.55, 1.0}}, {{-0.5, 1.05, 1.0}}};
   test_cube_triangle->indices = {0, 1, 2};
   test_cube_triangle->create_buffer();
-  // drawing_objs.emplace_back(get_cone_primitive(0));
-    drawing_objs.emplace_back(get_cylinder_primitive(1));
+  drawing_objs.emplace_back(get_polygon_cone_primitive(4));
+  drawing_objs.emplace_back(get_cylinder_primitive(3));
   // drawing_objs.emplace_back(get_plane_primitive());
-  // drawing_objs.emplace_back(get_icosphere_primitive(3));
+  drawing_objs.emplace_back(get_icosphere_primitive(3));
   // drawing_objs.emplace_back((get_simplex_disk_primitive(2)));
   // drawing_objs.emplace_back(get_plane_primitive());
   drawing_objs.emplace_back(get_cube_wireframe_primitive());
-  // drawing_objs.emplace_back(get_cube_primitive());
-  std::shared_ptr<Camera> arcball_camera = std::make_shared<ArcBallCamera>();
-  std::shared_ptr<Camera> fps_camera = std::make_shared<FpsCamera>();
-  std::shared_ptr<Camera> camera = arcball_camera;
+  drawing_objs.emplace_back(get_cube_primitive());
+  std::shared_ptr<ArcBallCamera> arcball_camera =
+      std::make_shared<ArcBallCamera>();
+  std::shared_ptr<FpsCamera> fps_camera = std::make_shared<FpsCamera>();
+  std::shared_ptr<ArcBallCamera> camera = arcball_camera;
 
   camera->install_callback(window);
 
@@ -280,8 +282,13 @@ int main() {
     glm::mat4 projection = glm::mat4(1.0f);
     auto [display_w, display_h] = window.get_window_size();
 
-    projection = glm::perspective(
-        glm::radians(45.0f), (float)display_w / (float)display_h, near, far);
+    float dist = camera->m_radius;
+    float ratio = static_cast<float>(display_w) / static_cast<float>(display_h);
+    projection =
+        glm::ortho(-dist * ratio, dist * ratio, -dist, dist, -100.0f, 100.0f);
+
+    // projection = glm::perspective(
+    //     glm::radians(45.0f), (float)display_w / (float)display_h, near, far);
     const glm::mat4 &view = camera->get_view_matrix();
     shader_program.use();
     shader_program.set_uniform("view", view);
