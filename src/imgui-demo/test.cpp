@@ -149,7 +149,7 @@ int main() {
   for (auto &m : drawing_objs) {
     m->create_buffer();
   }
-  GUARD_EXIT({
+  DEFER({
     for (auto &m : drawing_objs) {
       m->destroy_buffer();
     }
@@ -187,7 +187,7 @@ int main() {
 
   GLuint dummy_vao{};
   glGenVertexArrays(1, &dummy_vao);
-  GUARD_EXIT({ glDeleteVertexArrays(1, &dummy_vao); });
+  DEFER({ glDeleteVertexArrays(1, &dummy_vao); });
   auto grid_shader = get_grid_shader();
   if (grid_shader.get_program_id() == 0) {
     fmt::println("failed to create shader, quit!");
@@ -263,7 +263,7 @@ int main() {
 
   GLuint test_vao{};
   glGenVertexArrays(1, &test_vao);
-  GUARD_EXIT({ glDeleteVertexArrays(1, &test_vao); });
+  DEFER({ glDeleteVertexArrays(1, &test_vao); });
 
   Shader point_shader{vertex_shader_text, fragment_shader_text};
 
@@ -350,6 +350,6 @@ int main() {
     glClearColor(0, 0, 0, 1);
 
   });
-  window.render_loop();
+  window.run();
   return 0;
 }

@@ -11,6 +11,6 @@ struct DeferHelper {
 #define CONCAT_IMPL(x, y) x##y
 #define CONCAT(x, y) CONCAT_IMPL(x, y)
 #define DEFER(block_code)                                                      \
-  Defer CONCAT(_defer_, __LINE__) { [&]() block_code }
+  DeferHelper CONCAT(_defer_, __LINE__) { [&]() block_code }
 
 #endif // RAII_HELPER_H

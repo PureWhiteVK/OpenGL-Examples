@@ -25,8 +25,9 @@ public:
   GLFWwindow *get_handle() { return m_window; }
 
   std::tuple<int, int> get_window_size() { return {m_width, m_height}; }
+  std::tuple<int, int> get_framebuffer_size() { return {m_display_width,m_display_height}; }
 
-  void render_loop();
+  void run();
 
   CallbackHandle add_render_callback(RenderCallback callback);
   RenderCallback remove_render_callback(CallbackHandle handle);
@@ -35,6 +36,8 @@ private:
   GLFWwindow *m_window{nullptr};
   int m_height{};
   int m_width{};
+  int m_display_height{};
+  int m_display_width{};
   std::map<CallbackHandle, RenderCallback> m_render_callbacks{};
 };
 

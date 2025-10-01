@@ -78,7 +78,7 @@ Shader::Shader(const char *vertex_shader_source,
 
   const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
   glShaderSource(vertex_shader, 1, &vertex_shader_source, nullptr);
-  GUARD_EXIT({ glDeleteShader(vertex_shader); });
+  DEFER({ glDeleteShader(vertex_shader); });
   glCompileShader(vertex_shader);
   if (!check_shader_compile_status(vertex_shader)) {
     return;
@@ -86,7 +86,7 @@ Shader::Shader(const char *vertex_shader_source,
 
   const GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
   glShaderSource(fragment_shader, 1, &fragment_shader_source, nullptr);
-  GUARD_EXIT({ glDeleteShader(fragment_shader); });
+  DEFER({ glDeleteShader(fragment_shader); });
   glCompileShader(fragment_shader);
   if (!check_shader_compile_status(fragment_shader)) {
     return;
@@ -104,7 +104,7 @@ Shader::Shader(const char *vertex_shader_source,
 }
 
 Shader::~Shader() {
-  if (program != 0) {
+  if (is_valid()) {
     fmt::println("delete program: {}", program);
     glDeleteProgram(program);
   }
@@ -120,6 +120,11 @@ void Shader::set_uniform(const char *name, const glm::mat4 &matrix) {
 void Shader::set_uniform(const char *name, const glm::vec3 &vector) {
   GLuint location = glGetUniformLocation(program, name);
   glUniform3fv(location, 1, glm::value_ptr(vector));
+}
+
+void Shader::set_uniform(const char *name, const glm::vec2 &vector) {
+  GLuint location = glGetUniformLocation(program, name);
+  glUniform2fv(location, 1, glm::value_ptr(vector));
 }
 
 void Shader::set_uniform(const char *name, const float f) {

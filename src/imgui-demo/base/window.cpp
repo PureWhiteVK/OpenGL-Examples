@@ -20,6 +20,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include <nfd.hpp>
+
 using namespace gl;
 
 template <> struct fmt::formatter<GLenum> : fmt::ostream_formatter {};
@@ -54,20 +56,22 @@ Window::Window(int width, int height, const std::string &title)
 
   // high dpi support
   glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
-
+#ifdef __APPLE__
+  glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, GLFW_TRUE);
+#endif
   // Request an OpenGL 4.2 core profile context
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-// #ifndef __APPLE__
   glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_TRUE);
-// #endif
   m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
   if (!m_window) {
     glfwTerminate();
     exit(EXIT_FAILURE);
   }
+
+  glfwGetFramebufferSize(m_window, &m_display_width, &m_display_height);
 
   glfwSetWindowUserPointer(m_window, this);
   glfwSetWindowSizeCallback(m_window, [](GLFWwindow *window, int width,
@@ -75,13 +79,18 @@ Window::Window(int width, int height, const std::string &title)
     auto self = reinterpret_cast<Window *>(glfwGetWindowUserPointer(window));
     self->m_width = width;
     self->m_height = height;
-    int display_w{}, display_h{};
-    glfwGetFramebufferSize(window, &display_w, &display_h);
-    glViewport(0, 0, display_w, display_h);
+  });
+
+  glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow *window, int width,
+                                              int height) {
+    auto self = reinterpret_cast<Window *>(glfwGetWindowUserPointer(window));
+    self->m_display_width = width;
+    self->m_display_height = height;
+    glViewport(0, 0, self->m_display_width, self->m_display_height);
   });
 
   glfwMakeContextCurrent(m_window);
-  glbinding::initialize(glfwGetProcAddress,false);
+  glbinding::initialize(glfwGetProcAddress, false);
 
   fmt::println("OpenGL Version: {}",
                glbinding::aux::ContextInfo::version().toString());
@@ -110,6 +119,7 @@ Window::Window(int width, int height, const std::string &title)
 
   // Enable vsync
   glfwSwapInterval(1);
+  glViewport(0, 0, m_display_width, m_display_height);
 
   // initialize ImGUI
   IMGUI_CHECKVERSION();
@@ -135,9 +145,14 @@ Window::Window(int width, int height, const std::string &title)
 
   ImGui_ImplGlfw_InitForOpenGL(m_window, true);
   ImGui_ImplOpenGL3_Init();
+
+  NFD::Init();
 }
 
 Window::~Window() {
+  fmt::println("quit NFD");
+  NFD::Quit();
+
   fmt::println("cleanup imgui");
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
@@ -148,7 +163,7 @@ Window::~Window() {
   glfwTerminate();
 }
 
-void Window::render_loop() {
+void Window::run() {
   auto &imgui_io = ImGui::GetIO();
   while (!glfwWindowShouldClose(m_window)) {
     glfwPollEvents();

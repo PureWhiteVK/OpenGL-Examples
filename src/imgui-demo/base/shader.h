@@ -17,14 +17,16 @@ public:
 
   Shader(Shader &&s) { *this = std::move(s); }
   Shader &operator=(Shader &&s) {
-    program = std::move(s.program);
-    s.program = 0;
+    std::swap(program, s.program);
     return *this;
   }
+
+  bool is_valid() { return program != 0; }
 
   void use();
   void set_uniform(const char *name, const glm::mat4 &matrix);
   void set_uniform(const char *name, const glm::vec3 &vector);
+  void set_uniform(const char *name, const glm::vec2 &vector);
   void set_uniform(const char *name, const float f);
   gl::GLuint get_program_id() { return program; }
 

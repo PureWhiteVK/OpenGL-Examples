@@ -11,5 +11,7 @@ find_package(glm)
 find_package(fmt)
 find_package(tinyobjloader)
 find_package(imgui)
+find_package(nfd)
+find_package(libuv)
 
 add_subdirectory(src)

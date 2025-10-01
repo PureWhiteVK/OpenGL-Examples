@@ -27,6 +27,8 @@ class hello_glbindingRecipe(ConanFile):
         self.requires("fmt/11.2.0")
         self.requires("tinyobjloader/2.0.0-release")
         self.requires("imgui/1.92.2b-docking")
+        self.requires("nativefiledialog-extended/1.2.1")
+        self.requires("libuv/1.51.0")
 
     def layout(self):
         self.cmake_generator = "Ninja"

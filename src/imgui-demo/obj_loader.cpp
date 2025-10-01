@@ -1,6 +1,5 @@
 #include "arcball_camera.h"
 #include "drawable.h"
-#include "fps_camera.h"
 #include "primitive.h"
 #include "raii_helper.h"
 #include "shader.h"
@@ -9,23 +8,18 @@
 #include <GLFW/glfw3.h>
 #include <fmt/base.h>
 #include <fmt/format.h>
-#include <glbinding/FunctionCall.h>
-#include <glbinding/gl/enum.h>
-#include <glbinding/gl/functions.h>
-#include <glbinding/gl/types.h>
+#include <glbinding/glbinding.h>
 #include <glm/ext.hpp>
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/ext/quaternion_common.hpp>
-#include <glm/ext/quaternion_geometric.hpp>
-#include <glm/fwd.hpp>
-#include <glm/geometric.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/matrix.hpp>
-#include <glm/trigonometric.hpp>
+#include <glm/glm.hpp>
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #include <memory>
+#ifdef __APPLE__
+#define GLFW_EXPOSE_NATIVE_COCOA
+#endif
+#include <nfd.h>
+#include <nfd.hpp>
+#include <nfd_glfw3.h>
 
 using namespace gl;
 
@@ -57,59 +51,6 @@ private:
   glm::vec3 m_scale{1.0f};
 };
 
-static const char *vertex_shader_text = R"(\
-#version 330 core
-
-uniform vec3 point; 
-uniform mat4 view;
-uniform mat4 projection;
-
-
-out float diameter;
-
-void main()
-{
-	gl_Position = projection * view * vec4(point, 1.0);
-  // gl_Position = vec4(0.0,0.0,0.0,1.0);
-  // diameter for point
-  gl_PointSize = 30.0;
-  diameter = gl_PointSize;
-}
-)";
-
-static const char *fragment_shader_text = R"(\
-#version 330 core
-out vec4 FragColor;
-
-in float diameter;
-
-void main()
-{
-  float radius = diameter * 0.5;
-  float thickness = 3.0;
-  // 将 gl_PointCoord 映射到 [-1,1] 坐标
-  vec2 uv = gl_PointCoord * 2.0 - 1.0;
-  float dist = length(uv) * radius;
-
-  // 圆环裁剪
-  if (abs(dist - radius) > thickness * 0.5)
-      discard;
-
-  // 计算角度
-  float angle = atan(uv.y, uv.x); // [-pi, pi]
-  if (angle < 0.0) angle += 2.0 * 3.1415926; // 转成 [0,2pi]
-
-  // 8 分支，每个扇区 π/4
-  int sector = int(floor(angle / (3.1415926/4.0)));
-
-  // 奇偶扇区蓝白交替
-  if (sector % 2 == 0)
-      FragColor = vec4(1.0,0.0,0.0,1.0);
-  else
-      FragColor = vec4(1.0,1.0,1.0,1.0);
-}
-)";
-
 int main() {
   const int height = 600;
   const int width = 800;
@@ -117,25 +58,42 @@ int main() {
   // auto meshes = load_obj_file();
   std::vector<std::unique_ptr<Drawable>> drawing_objs{};
 
-  std::unique_ptr<Drawable> test_cube_wireframe =
-      get_cube_wireframe_primitive();
+  nfdnchar_t *filePath{nullptr};
+  nfdwindowhandle_t windowHandle{};
+  NFD_GetNativeWindowFromGLFWWindow(window.get_handle(), &windowHandle);
+  nfdresult_t res =
+      NFD::OpenDialog(filePath, nullptr, 0, nullptr, windowHandle);
+  if (res != NFD_OKAY) {
+    return 0;
+  }
+  fmt::println("load obj file [{}]",filePath);
+  auto meshes = load_obj_file(std::filesystem::path{filePath});
+  for (auto &m : meshes) {
+    std::unique_ptr<Mesh> new_mesh = std::make_unique<Mesh>();
+    new_mesh->indices = std::move(m.indices);
+    new_mesh->vertices = std::move(m.vertices);
+    drawing_objs.emplace_back(std::move(new_mesh));
+  }
 
-  std::unique_ptr<Mesh> test_cube_triangle = std::make_unique<Mesh>();
-  test_cube_triangle->vertices = {
-      {{0.5, 1.05, 1.0}}, {{0.0, 1.55, 1.0}}, {{-0.5, 1.05, 1.0}}};
-  test_cube_triangle->indices = {0, 1, 2};
-  test_cube_triangle->create_buffer();
-  drawing_objs.emplace_back(get_polygon_cone_primitive(4));
-  drawing_objs.emplace_back(get_cylinder_primitive(3));
+  // std::unique_ptr<Drawable> test_cube_wireframe =
+  // get_cube_wireframe_primitive();
+
+  // std::unique_ptr<Mesh> test_cube_triangle = std::make_unique<Mesh>();
+  // test_cube_triangle->vertices = {
+  // {{0.5, 1.05, 1.0}}, {{0.0, 1.55, 1.0}}, {{-0.5, 1.05, 1.0}}};
+  // test_cube_triangle->indices = {0, 1, 2};
+  // test_cube_triangle->create_buffer();
+  // drawing_objs.emplace_back(get_polygon_cone_primitive(4));
+  // drawing_objs.emplace_back(get_cylinder_primitive(3));
   // drawing_objs.emplace_back(get_plane_primitive());
-  drawing_objs.emplace_back(get_icosphere_primitive(3));
+  // drawing_objs.emplace_back(get_icosphere_primitive(3));
   // drawing_objs.emplace_back((get_simplex_disk_primitive(2)));
   // drawing_objs.emplace_back(get_plane_primitive());
-  drawing_objs.emplace_back(get_cube_wireframe_primitive());
-  drawing_objs.emplace_back(get_cube_primitive());
+  // drawing_objs.emplace_back(get_cube_wireframe_primitive());
+  // drawing_objs.emplace_back(get_cube_primitive());
   std::shared_ptr<ArcBallCamera> arcball_camera =
       std::make_shared<ArcBallCamera>();
-  std::shared_ptr<FpsCamera> fps_camera = std::make_shared<FpsCamera>();
+  // std::shared_ptr<FpsCamera> fps_camera = std::make_shared<FpsCamera>();
   std::shared_ptr<ArcBallCamera> camera = arcball_camera;
 
   camera->install_callback(window);
@@ -144,17 +102,17 @@ int main() {
   float scale_factor = 3.0f;
   float inv_scale_factor = 1.0f / scale_factor;
 
-  test_cube_triangle->create_buffer();
-  test_cube_wireframe->create_buffer();
+  // test_cube_triangle->create_buffer();
+  // test_cube_wireframe->create_buffer();
   for (auto &m : drawing_objs) {
     m->create_buffer();
   }
-  GUARD_EXIT({
+  DEFER({
     for (auto &m : drawing_objs) {
       m->destroy_buffer();
     }
-    test_cube_wireframe->destroy_buffer();
-    test_cube_triangle->destroy_buffer();
+    // test_cube_wireframe->destroy_buffer();
+    // test_cube_triangle->destroy_buffer();
   });
 
   auto shader_program = get_test_shader();
@@ -187,7 +145,7 @@ int main() {
 
   GLuint dummy_vao{};
   glGenVertexArrays(1, &dummy_vao);
-  GUARD_EXIT({ glDeleteVertexArrays(1, &dummy_vao); });
+  DEFER({ glDeleteVertexArrays(1, &dummy_vao); });
   auto grid_shader = get_grid_shader();
   if (grid_shader.get_program_id() == 0) {
     fmt::println("failed to create shader, quit!");
@@ -261,11 +219,10 @@ int main() {
     ImGui::Render();
   });
 
-  GLuint test_vao{};
-  glGenVertexArrays(1, &test_vao);
-  GUARD_EXIT({ glDeleteVertexArrays(1, &test_vao); });
-
-  Shader point_shader{vertex_shader_text, fragment_shader_text};
+  // GLuint test_vao{};
+  // glGenVertexArrays(1, &test_vao);
+  // DEFER({ glDeleteVertexArrays(1, &test_vao); });
+  // Shader point_shader{vertex_shader_text, fragment_shader_text};
 
   float near = 0.01f;
   float far = 100.0f;
@@ -295,10 +252,10 @@ int main() {
     shader_program.set_uniform("projection", projection);
 
     for (int i = 0; i < drawing_objs.size(); i++) {
-      glm::mat4 model =
-          glm::translate(glm::identity<glm::mat4>(), model_pos[i]);
+      // glm::mat4 model =
+      //     glm::translate(glm::identity<glm::mat4>(), model_pos[i]);
 
-      shader_program.set_uniform("model", model);
+      shader_program.set_uniform("model", trans_component.get_transform());
       drawing_objs[i]->draw();
     }
 
@@ -311,13 +268,14 @@ int main() {
     glm::mat4 inv_camera = glm::inverse(test_view) * glm::inverse(projection);
 
     // make sure camera will scale to 1
-    float camera_model_scale = (far + near - 2.0 * near * far) / (far - near);
+    // float camera_model_scale = (far + near - 2.0 * near * far) / (far -
+    // near);
 
-    shader_program.set_uniform(
-        "model", inv_camera * glm::scale(glm::identity<glm::mat4>(),
-                                         glm::vec3{camera_model_scale}));
-    test_cube_wireframe->draw();
-    test_cube_triangle->draw();
+    // shader_program.set_uniform(
+    //     "model", inv_camera * glm::scale(glm::identity<glm::mat4>(),
+    //                                      glm::vec3{camera_model_scale}));
+    // test_cube_wireframe->draw();
+    // test_cube_triangle->draw();
 
     // point_shader.use();
     // point_shader.set_uniform("view", view);
@@ -343,13 +301,6 @@ int main() {
     camera->draw_indicator();
   });
 
-  
-
-  // shader toy like fragment shader set up
-  window.add_render_callback([&](Window& window){
-    glClearColor(0, 0, 0, 1);
-
-  });
-  window.render_loop();
+  window.run();
   return 0;
 }

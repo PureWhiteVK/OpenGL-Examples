@@ -106,9 +106,9 @@ void ArcBallCamera::window_callback(Window &window) {
       m_view_center += m_up * io.MouseDelta.y * m_move_speed;
     } else {
       m_yaw += io.MouseDelta.x * m_view_sensitivity;
-      if(m_yaw > 179.0f) {
+      if (m_yaw > 179.0f) {
         m_yaw -= 360.0f;
-      } else if(m_yaw < -179.0f) {
+      } else if (m_yaw < -179.0f) {
         m_yaw += 360.0f;
       }
       // inverse y
@@ -123,13 +123,17 @@ void ArcBallCamera::window_callback(Window &window) {
 
 void ArcBallCamera::draw_gui() {
   ImGui::Begin("ArcBall Camera");
-  ImGui::SliderFloat("View Sensitivity", &m_view_sensitivity, 0.0f, 1.0f);
-  ImGui::SliderFloat("Scale Sensitivity", &m_scale_sensitivity, 0.0f, 1.0f);
-  ImGui::SliderFloat("Move Speed", &m_move_speed, 0.0f, 0.01f);
-  ImGui::SliderFloat("Radius", &m_radius, 0.1f, 20.0f);
-  ImGui::SliderFloat3("View Center", glm::value_ptr(m_view_center), -20, 20);
-  ImGui::SliderFloat("Pitch", &m_pitch, -89.0f, 89.0f);
-  ImGui::SliderFloat("Yaw", &m_yaw, -180.0f, 180.0f);
+  bool changed = false;
+  changed |=
+      ImGui::SliderFloat("View Sensitivity", &m_view_sensitivity, 0.0f, 1.0f);
+  changed |=
+      ImGui::SliderFloat("Scale Sensitivity", &m_scale_sensitivity, 0.0f, 1.0f);
+  changed |= ImGui::SliderFloat("Move Speed", &m_move_speed, 0.0f, 0.01f);
+  changed |= ImGui::SliderFloat("Radius", &m_radius, 0.1f, 20.0f);
+  changed |= ImGui::SliderFloat3("View Center", glm::value_ptr(m_view_center),
+                                 -20, 20);
+  changed |= ImGui::SliderFloat("Pitch", &m_pitch, -89.0f, 89.0f);
+  changed |= ImGui::SliderFloat("Yaw", &m_yaw, -180.0f, 180.0f);
   // matrix is columa major here
   ImGui::Text(
       "[%.3f %.3f %.3f %.3f]\n[%.3f %.3f %.3f %.3f]\n[%.3f %.3f %.3f "
@@ -139,6 +143,10 @@ void ArcBallCamera::draw_gui() {
       m_view_mat[0][2], m_view_mat[1][2], m_view_mat[2][2], m_view_mat[3][2],
       m_view_mat[0][3], m_view_mat[1][3], m_view_mat[2][3], m_view_mat[3][3]);
   ImGui::End();
+
+  if (changed) {
+    update();
+  }
 }
 
 void ArcBallCamera::draw_indicator() {
