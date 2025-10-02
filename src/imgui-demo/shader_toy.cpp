@@ -264,11 +264,16 @@ int main() {
       return;
     }
     static std::array<char, 1024> buffer{};
+    // reset buffer
+    memset(buffer.data(),'\0',buffer.size());
     std::string content{};
     while (!file.eof()) {
-      file.read(buffer.data(), buffer.size());
+      file.read(buffer.data(), buffer.size() - 1);
+      // make sure buffer is null ended
+      buffer[file.gcount()] = '\0';
       content += buffer.data();
     }
+    fmt::println("Shader Content:\n\n{}\n\n",content);
     Shader new_shader{vertex_shader_text, content.c_str()};
     if (!new_shader.is_valid()) {
       fmt::println("failed to create new shader, use previous one");
@@ -283,14 +288,12 @@ int main() {
     (*callback)(handle);
   });
 
-  FileWatcher watcher{
-      [&shader_file_change_signal, &target_file](const fs::path &p) {
-        // here the on_file_change callback is run on watcher thread,
-        // we have to send another signal to make sure shader load action is
-        // executed on main thread
-        target_file = p;
-        uv_async_send(&shader_file_change_signal);
-      }};
+  FileWatcher watcher{[&shader_file_change_signal](const fs::path &p) {
+    // here the on_file_change callback is run on watcher thread,
+    // we have to send another signal to make sure shader load action is
+    // executed on main thread
+    uv_async_send(&shader_file_change_signal);
+  }};
 
   std::thread watcher_thread{[&watcher]() {
     watcher.init();
@@ -319,6 +322,7 @@ int main() {
             file_path, &filter, 1, "/Users/xiao/Code/Cpp/OpenGL-Examples",
             native_window);
         if (res == NFD_OKAY) {
+          target_file = file_path;
           watcher.set_target_file(file_path);
         }
       }
