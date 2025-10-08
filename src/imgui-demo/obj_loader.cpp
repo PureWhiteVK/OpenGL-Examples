@@ -1,6 +1,5 @@
 #include "arcball_camera.h"
 #include "drawable.h"
-#include "primitive.h"
 #include "raii_helper.h"
 #include "shader.h"
 #include "window.h"
@@ -58,7 +57,7 @@ int main() {
   // auto meshes = load_obj_file();
   std::vector<std::unique_ptr<Drawable>> drawing_objs{};
 
-  nfdnchar_t *filePath{nullptr};
+  nfdu8char_t *filePath{nullptr};
   nfdwindowhandle_t windowHandle{};
   NFD_GetNativeWindowFromGLFWWindow(window.get_handle(), &windowHandle);
   nfdresult_t res =

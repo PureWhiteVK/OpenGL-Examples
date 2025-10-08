@@ -18,4 +18,11 @@ conan create . --version "3.5.0"
 
 cd recipes/tinyobjloader/all
 conan create . --version "2.0.0-release"
+
+cd recipes/nativefiledialog-extended/all
+conan create . --version "1.2.1"
 ```
+
+# Note
+
+currently, we **only support ASCII encoding** (no UTF-8 / GBK / BIG-5).

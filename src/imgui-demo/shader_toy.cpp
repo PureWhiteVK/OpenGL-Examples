@@ -5,17 +5,19 @@
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <filesystem>
+#include <fmt/base.h>
 #include <fmt/format.h>
 #include <fstream>
 #include <glm/ext.hpp>
 #include <imgui.h>
 #include <imgui_stdlib.h>
-#include <memory>
 #include <thread>
 #include <uv.h>
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #define GLFW_EXPOSE_NATIVE_COCOA
+#elif defined(_WIN32)
+#define GLFW_EXPOSE_NATIVE_WIN32
 #endif
 #include <nfd.h>
 #include <nfd.hpp>
@@ -158,7 +160,7 @@ public:
 
     fmt::println("start new monitoring fs event");
     err = uv_fs_event_start(&self->m_fs_event_handle, &self->on_fs_event,
-                            self->m_target_file.c_str(), 0);
+                            self->m_target_file.string().c_str(), 0);
     check_err(err);
 
     // manually trigger file change event here
@@ -213,12 +215,12 @@ public:
 
   void set_target_file(const fs::path &new_p) {
     if (new_p.empty() || !fs::is_regular_file(new_p)) {
-      fmt::println("file [{}] is invalid", new_p.c_str());
+      fmt::println("file [{}] is invalid", new_p.string().c_str());
       return;
     }
     int err{};
     m_target_file = new_p;
-    fmt::println("set target file to {}", new_p.filename().c_str());
+    fmt::println("set target file to {}", new_p.filename().string().c_str());
     err = uv_async_send(&m_change_target_signal);
     // trigger change immedietly here
     check_err(err);
@@ -257,15 +259,17 @@ int main() {
   uv_async_t shader_file_change_signal{};
   using AsyncCallback = std::function<void(uv_async_t *)>;
   AsyncCallback shader_file_change_callback = [&](uv_async_t *) {
-    fmt::println("loading shader file [{}]", target_file.filename().c_str());
+    fmt::println("loading shader file [{}]",
+                 target_file.filename().string().c_str());
     std::ifstream file{target_file, std::ifstream::in};
     if (!file.is_open()) {
-      fmt::println("failed to open file [{}]", target_file.filename().c_str());
+      fmt::println("failed to open file [{}]",
+                   target_file.filename().string().c_str());
       return;
     }
     static std::array<char, 1024> buffer{};
     // reset buffer
-    memset(buffer.data(),'\0',buffer.size());
+    memset(buffer.data(), '\0', buffer.size());
     std::string content{};
     while (!file.eof()) {
       file.read(buffer.data(), buffer.size() - 1);
@@ -273,7 +277,7 @@ int main() {
       buffer[file.gcount()] = '\0';
       content += buffer.data();
     }
-    fmt::println("Shader Content:\n\n{}\n\n",content);
+    fmt::println("Shader Content:\n\n{}\n\n", content);
     Shader new_shader{vertex_shader_text, content.c_str()};
     if (!new_shader.is_valid()) {
       fmt::println("failed to create new shader, use previous one");
@@ -314,16 +318,18 @@ int main() {
         if (!NFD_GetNativeWindowFromGLFWWindow(window.get_handle(),
                                                &native_window)) {
           const char *err_msg = NFD_GetError();
-          if (err_msg) {
-            fmt::println("failed to get native window: {}", err_msg);
-          }
+          fmt::println("failed to get native window: {}",
+                       err_msg ? err_msg : "(null)");
         }
-        nfdresult_t res = NFD::OpenDialog(
-            file_path, &filter, 1, "/Users/xiao/Code/Cpp/OpenGL-Examples",
-            native_window);
+        nfdresult_t res =
+            NFD::OpenDialog(file_path, &filter, 1, nullptr, native_window);
         if (res == NFD_OKAY) {
           target_file = file_path;
           watcher.set_target_file(file_path);
+        } else if (res == NFD_ERROR) {
+          const char *err_msg = NFD_GetError();
+          fmt::println("failed to open file dialog: {}",
+                       err_msg ? err_msg : "(null)");
         }
       }
       ImGui::Text("Current Shader File: %s", file_path ? file_path : "(null)");
