@@ -222,7 +222,6 @@ public:
     m_target_file = new_p;
     fmt::println("set target file to {}", new_p.filename().string().c_str());
     err = uv_async_send(&m_change_target_signal);
-    // trigger change immedietly here
     check_err(err);
   }
 
@@ -243,6 +242,8 @@ int main() {
   const int width = 600;
   Window window{width, height, "Shader Toy"};
 
+  // glEnable(GL_FRAMEBUFFER_SRGB);
+
   window.add_render_callback([&](Window &window) {
     auto &io = ImGui::GetIO();
     auto *w = window.get_handle();
@@ -258,7 +259,8 @@ int main() {
   uv_loop_t *loop = uv_default_loop();
   uv_async_t shader_file_change_signal{};
   using AsyncCallback = std::function<void(uv_async_t *)>;
-  AsyncCallback shader_file_change_callback = [&](uv_async_t *) {
+  AsyncCallback shader_file_change_callback = [&shader,
+                                               &target_file](uv_async_t *) {
     fmt::println("loading shader file [{}]",
                  target_file.filename().string().c_str());
     std::ifstream file{target_file, std::ifstream::in};
@@ -300,11 +302,14 @@ int main() {
   }};
 
   std::thread watcher_thread{[&watcher]() {
+    // init and run must on the same thread
     watcher.init();
     watcher.run();
   }};
 
-  window.add_render_callback([&watcher, &target_file](Window &window) {
+  float scale{};
+
+  window.add_render_callback([&watcher, &target_file, &scale](Window &window) {
     auto &io = ImGui::GetIO();
     // static bool show_demo_window{false};
     // ImGui::ShowDemoWindow(&show_demo_window);
@@ -326,13 +331,16 @@ int main() {
         if (res == NFD_OKAY) {
           target_file = file_path;
           watcher.set_target_file(file_path);
+          NFD::FreePath(file_path);
         } else if (res == NFD_ERROR) {
           const char *err_msg = NFD_GetError();
           fmt::println("failed to open file dialog: {}",
                        err_msg ? err_msg : "(null)");
         }
       }
-      ImGui::Text("Current Shader File: %s", file_path ? file_path : "(null)");
+      ImGui::SliderFloat("Scale Factor", &scale, 0.01f, 20.0f);
+      ImGui::Text("Current Shader File: %s",
+                  target_file.empty() ? "(null)" : target_file.c_str());
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / io.Framerate, io.Framerate);
       ImGui::End();
@@ -344,7 +352,8 @@ int main() {
   glGenVertexArrays(1, &dummy_vao);
   DEFER({ glDeleteVertexArrays(1, &dummy_vao); });
 
-  window.add_render_callback([loop, &shader, dummy_vao](Window &window) {
+  window.add_render_callback([loop, &shader, dummy_vao,
+                              &scale](Window &window) {
     // handle change here
     uv_run(loop, UV_RUN_NOWAIT);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -353,6 +362,7 @@ int main() {
     }
     auto [w, h] = window.get_framebuffer_size();
     shader.use();
+    shader.set_uniform("scale_factor", scale);
     shader.set_uniform("framebuffer_size",
                        glm::vec2{static_cast<float>(w), static_cast<float>(h)});
     glBindVertexArray(dummy_vao);
