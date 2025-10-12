@@ -150,21 +150,27 @@ public:
 
     int err{};
     fmt::println("stop previous monitoring fs event");
-    err = uv_fs_event_stop(&self->m_fs_event_handle);
-    check_err(err);
+    uv_close(
+        reinterpret_cast<uv_handle_t *>(&self->m_fs_event_handle),
+        [](uv_handle_t *handle) {
+          fmt::println("previous monitoring fs event is closed");
+          auto self =
+              reinterpret_cast<FileWatcher *>(uv_loop_get_data(handle->loop));
+          fmt::println("start new monitoring fs event");
+          int err{};
+          err = uv_fs_event_init(handle->loop, &self->m_fs_event_handle);
+          check_err(err);
+          err = uv_fs_event_start(&self->m_fs_event_handle, &self->on_fs_event,
+                                  self->m_target_file.string().c_str(), 0);
+          check_err(err);
+          // manually trigger file change event here
+          self->m_on_file_change(self->m_target_file);
+        });
 
     fmt::println("stop previous debounce timer");
     err = uv_timer_stop(&self->m_debounce_timer);
+    check_err(err);
     self->m_debounce_activated = false;
-    check_err(err);
-
-    fmt::println("start new monitoring fs event");
-    err = uv_fs_event_start(&self->m_fs_event_handle, &self->on_fs_event,
-                            self->m_target_file.string().c_str(), 0);
-    check_err(err);
-
-    // manually trigger file change event here
-    self->m_on_file_change(self->m_target_file);
   }
 
 public:
@@ -340,7 +346,8 @@ int main() {
       }
       ImGui::SliderFloat("Scale Factor", &scale, 0.01f, 20.0f);
       ImGui::Text("Current Shader File: %s",
-                  target_file.empty() ? "(null)" : target_file.string().c_str());
+                  target_file.empty() ? "(null)"
+                                      : target_file.string().c_str());
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / io.Framerate, io.Framerate);
       ImGui::End();
