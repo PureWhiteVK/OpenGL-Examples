@@ -340,7 +340,7 @@ int main() {
       }
       ImGui::SliderFloat("Scale Factor", &scale, 0.01f, 20.0f);
       ImGui::Text("Current Shader File: %s",
-                  target_file.empty() ? "(null)" : target_file.c_str());
+                  target_file.empty() ? "(null)" : target_file.string().c_str());
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / io.Framerate, io.Framerate);
       ImGui::End();
