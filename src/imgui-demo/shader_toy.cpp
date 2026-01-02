@@ -186,31 +186,31 @@ public:
 
   bool init() {
     int err{};
-    fmt::println("init monitor loop");
+    fmt::println("initialize monitor loop");
     err = uv_loop_init(&m_monitor_loop);
     if (check_err(err)) {
       return false;
     }
     uv_loop_set_data(&m_monitor_loop, this);
-    fmt::println("init fs event");
+    fmt::println("initialize fs event");
     err = uv_fs_event_init(&m_monitor_loop, &m_fs_event_handle);
     if (check_err(err)) {
       return false;
     }
 
-    fmt::println("init timer");
+    fmt::println("initialize debounce timer");
     err = uv_timer_init(&m_monitor_loop, &m_debounce_timer);
     if (check_err(err)) {
       return false;
     }
 
-    fmt::println("init async stop signal");
+    fmt::println("initialize stop signal");
     err = uv_async_init(&m_monitor_loop, &m_stop_signal, &on_stop);
     if (check_err(err)) {
       return false;
     }
 
-    fmt::println("init target rename signal");
+    fmt::println("initialize change target signal");
     err = uv_async_init(&m_monitor_loop, &m_change_target_signal,
                         &on_change_target);
     if (check_err(err)) {
@@ -323,7 +323,7 @@ int main() {
       ImGui::Begin("Control Panel");
       // ImGui::Checkbox("Demo Window", &show_demo_window);
       static nfdu8char_t *file_path{};
-      if (ImGui::Button("Fragment Shader")) {
+      if (ImGui::Button("Load Shader")) {
         static nfdfilteritem_t filter{"Fragment Shader", "frag"};
         static nfdwindowhandle_t native_window{};
         if (!NFD_GetNativeWindowFromGLFWWindow(window.get_handle(),

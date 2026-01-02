@@ -1,0 +1,1 @@
+Sccotty3D (with CMake) from [here](https://github.com/CMU-Graphics/Scotty3D)
