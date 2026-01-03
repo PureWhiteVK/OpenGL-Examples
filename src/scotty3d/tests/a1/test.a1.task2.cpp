@@ -1,7 +1,10 @@
 #include "test.h"
+#include "lib/vec2.h"
 #include "rasterizer/pipeline.h"
 #include "rasterizer/programs.h"
+#include "geometry/util.h"
 
+#include <cassert>
 #include <limits>
 #include <iomanip>
 #include <algorithm>
@@ -140,9 +143,11 @@ Test test_a1_task2_diamond_inside("a1.task2.diamond.inside", []() {
 	check_line_covers(
 		"line inside diamond (1,1)",
 		{ Vec2(1.5f, 1.25f), Vec2(1.25f, 1.5f) },
-		{"...",
-		 "...",
-		 "..."}
+		{
+			"...",
+			"...",
+			"..."
+		}
 	);
 });
 
@@ -151,9 +156,11 @@ Test test_a1_task2_diamond_outside("a1.task2.diamond.outside", []() {
 	check_line_covers(
 		"line outside diamond (1,1)",
 		{ Vec2(1.125f, 1.25f), Vec2(1.25f, 1.125f) },
-		{"...",
-		 "...",
-		 "..."}
+		{
+			"...",
+			"...",
+			"..."
+		}
 	);
 });
 
@@ -165,9 +172,11 @@ Test test_a1_task2_simple_horizontal("a1.task2.simple.horizontal", []() {
 	check_line_covers(
 		"horizontal line from (1.125, 1.125) to (4.875, 1.125)",
 		{ Vec2(1.125f, 1.125f), Vec2(4.875f, 1.125f) },
-		{"......",
-		 ".####.",
-		 "......"}
+		{
+			"......",
+			".####.",
+			"......"
+		}
 	);
 });
 
@@ -176,13 +185,173 @@ Test test_a1_task2_simple_vertical("a1.task2.simple.vertical", []() {
 	check_line_covers(
 		"vertical line from (1.125, 1.125) to (1.125, 4.875)",
 		{ Vec2(1.125f, 1.125f), Vec2(1.125f, 4.875f) },
-		{"...",
-		 ".#.",
-		 ".#.",
-		 ".#.",
-		 ".#.",
-		 "..."}
+		{
+			"...",
+			".#.",
+			".#.",
+			".#.",
+			".#.",
+			"..."
+		}
 	);
 });
 
+Test test_a1_task2_my_example1("a1.task2.my.example1", []() {
+	check_line_covers(
+		"vertical line from (0.75,0.125) to (4.3,2.8)",
+		{ Vec2(0.75f, 0.125f), Vec2(4.3f, 2.8f) },
+		{
+		"....#",
+		"..##.",
+		"##..."
+		}
+	);
+});
 
+Test test_a1_task2_my_example2("a1.task2.my.example2", []() {
+	check_line_covers(
+		"vertical line from (4.3,2.8) to (0.75,0.125)",
+		{ Vec2(4.3f, 2.8f),Vec2(0.75f, 0.125f) },
+		{
+		"....#",
+		"..##.",
+		"##..."
+		}
+	);
+});
+
+Test test_a1_task2_my_example3("a1.task2.my.example3", []() {
+	check_line_covers(
+		"vertical line from (2.8,4.3) to (0.125,0.75)",
+		{ Vec2(2.8f, 4.3f),Vec2(0.125f, 0.75f) },
+		{
+			"..#",
+			".#.",
+			".#.",
+			"#..",
+			"#.."
+		}
+	);
+});
+
+Test test_a1_task2_my_example4("a1.task2.my.example4", []() {
+	check_line_covers(
+		"vertical line from (0.125,0.75) to (2.8,4.3)",
+		{ Vec2(0.125f, 0.75f),Vec2(2.8f, 4.3f) },
+		{
+			"..#",
+			".#.",
+			".#.",
+			"#..",
+			"#.."
+		}
+	);
+});
+
+Test test_a1_task2_my_example5("a1.task2.my.example5", []() {
+	check_line_covers(
+		"vertical line from (0.31,4.62) to (2.44,0.38)",
+		{ Vec2(0.31f,4.62f),Vec2(2.44f,0.38f) },
+		{
+			"#..",
+			".#.",
+			".#.",
+			"..#",
+			"..#"
+		}
+	);
+});
+
+Test test_a1_task2_my_example6("a1.task2.my.example6", []() {
+	check_line_covers(
+		"vertical line from (2.44,0.38) to (0.31,4.62)",
+		{ Vec2(2.44f,0.38f),Vec2(0.31f,4.62f) },
+		{
+			"#..",
+			".#.",
+			".#.",
+			"..#",
+			"..#"
+		}
+	);
+});
+
+Test test_a1_task2_my_example62("a1.task2.my.example6.2", []() {
+	check_line_covers(
+		"vertical line from (0.31,4.62) to (2.44,0.38)",
+		{ Vec2(0.31f,4.62f),Vec2(2.44f,0.38f) },
+		{
+			"#..",
+			".#.",
+			".#.",
+			"..#",
+			"..#"
+		}
+	);
+});
+
+Test test_a1_task2_my_example7("a1.task2.my.example7", []() {
+	check_line_covers(
+		"vertical line from (0.46,2.48) to (4.52,0.29)",
+		{ Vec2(0.46f,2.48f),Vec2(4.52f,0.29f) },
+		{
+			"##...",
+			"..##.",
+			"....#"
+		}
+	);
+});
+
+Test test_a1_task2_my_example8("a1.task2.my.example8", []() {
+	check_line_covers(
+		"vertical line from (2.44,0.38) to (0.31,4.62)",
+		{ Vec2(4.52f,0.29f),Vec2(0.46f,2.48f)},
+		{
+			"##...",
+			"..##.",
+			"....#"
+		}
+	);
+});
+
+Test test_a1_task2_line1("a1.task2.line1", []() {
+	float t_min{}, t_max{};
+	auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{2.8f, 4.0f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == true);
+});
+
+Test test_a1_task2_line2("a1.task2.line2", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{3.4f, 3.2f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == true);
+});
+
+Test test_a1_task2_line3("a1.task2.line3", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{2.2f, 4.0f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == true);
+});
+
+Test test_a1_task2_line4("a1.task2.line4", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{3.4f, 2.6f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == false);
+});
+
+Test test_a1_task2_line5("a1.task2.line5", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{1.8f, 4.0f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == false);
+});
+
+Test test_a1_task2_line6("a1.task2.line6", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{3.2f, 3.0f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == true);
+});
+
+Test test_a1_task2_line7("a1.task2.line7", []() {
+	float t_min{}, t_max{};
+  auto res = Util::line_diamond_intersection(Vec2{2.0f, 3.0f}, Vec2{2.7f, 3.4f}, Vec2{2.5f, 3.5f}, t_min, t_max);
+  assert(res == true);
+});

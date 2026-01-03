@@ -42,6 +42,8 @@ Indexed_Mesh scale_mesh();
 
 GL::Lines spotlight_mesh(Spectrum color, float inner, float outer);
 
+bool line_diamond_intersection(Vec2 start, Vec2 end, Vec2 pixel_center, float& t_min, float& t_max);
+
 namespace Gen {
 
 struct Data {

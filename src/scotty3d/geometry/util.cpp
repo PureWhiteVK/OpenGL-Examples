@@ -121,6 +121,68 @@ GL::Lines spotlight_mesh(Spectrum color, float inner, float outer) {
 	return GL::Lines(std::move(rings.verts), 1.0f);
 }
 
+bool line_diamond_intersection(Vec2 start, Vec2 end, Vec2 pixel_center, float& t_min, float& t_max) {
+  float x1 = start.x;
+  float y1 = start.y;
+  float x2 = end.x;
+  float y2 = end.y;
+	float i = pixel_center.x;
+	float j = pixel_center.y;
+  float delta_x = x2 - x1;
+  float delta_y = y2 - y1;
+
+	
+	t_min = 0.0f;
+	t_max = 1.0f;
+	
+  auto evaluate_point = [=](float t) -> Vec2 {
+    return Vec2{x1 + delta_x * t, y1 + delta_y * t};
+  };
+  // solve a + b * t <= 0.0
+  auto clip_halfspace = [](float a, float b, float &t_min, float &t_max) {
+		// parallel case
+    if (std::abs(b) < 1e-8f) {
+			// inside half plane
+      if (a <= 0.0f) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    float t = -a / b;
+    if (b > 0.0f) {
+      t_max = std::min(t_max, t);
+    } else {
+      t_min = std::max(t_min, t);
+    }
+    return t_min <= t_max;
+  };
+
+  float b1 = delta_x + delta_y;
+	float b2 = delta_x - delta_y;
+	float a1 = (x1 + y1) - (i + j);
+	float a2 = (x1 - y1) - (i - j);
+
+	// b1 * t + a1 <= 0.5
+	if (!clip_halfspace(a1 - 0.5f, b1, t_min, t_max)) {
+		return false;
+	}
+	// b1 * t + a1 >= -0.5
+	if (!clip_halfspace(-a1 - 0.5f, -b1, t_min, t_max)) {
+		return false;
+	}
+	// b2 * t + a2 <= 0.5
+	if (!clip_halfspace(a2 - 0.5f, b2, t_min, t_max)) {
+		return false;
+	}
+	// b2 * t + a2 >= -0.5
+	if (!clip_halfspace(-a2 - 0.5f, -b2, t_min, t_max)) {
+		return false;
+	}
+
+	return true;
+}
+
 namespace Gen {
 
 Indexed_Mesh dedup(Data&& d) {
@@ -217,7 +279,7 @@ Data pentagon(float r) {
 	         {Vec3{r * std::cos(2.f * 2.f * PI_F / 5), 0.0f, r * std::sin(2.f * 2.f * PI_F / 5)}, Vec3{0.0f, 1.0f, 0.0f}, Vec2{1.0f, 0.0f}, 2},
 	         {Vec3{r * std::cos(3.f * 2.f * PI_F / 5), 0.0f, r * std::sin(3.f * 2.f * PI_F / 5)}, Vec3{0.0f, 1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 3},
 	         {Vec3{r * std::cos(4.f * 2.f * PI_F / 5), 0.0f, r * std::sin(4.f * 2.f * PI_F / 5)}, Vec3{0.0f, 1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 4},
-	         {Vec3{r * std::cos(5.f * 2.f * PI_F / 5), 0.0f, r * std::sin(5.f * 2.f * PI_F / 5)}, Vec3{0.0f, 1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 5}},
+	        /* {Vec3{r * std::cos(5.f * 2.f * PI_F / 5), 0.0f, r * std::sin(5.f * 2.f * PI_F / 5)}, Vec3{0.0f, 1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 5} */},
 	        {0, 1, 2, 0, 2, 3, 0, 3, 4}};
 }
 

@@ -2,11 +2,15 @@
 #include "pipeline.h"
 
 #include <iostream>
+#include <limits>
 
-#include "../lib/log.h"
-#include "../lib/mathlib.h"
-#include "framebuffer.h"
-#include "sample_pattern.h"
+#include "lib/log.h"
+#include "lib/mathlib.h"
+#include "lib/vec3.h"
+#include "rasterizer/framebuffer.h"
+#include "rasterizer/sample_pattern.h"
+#include "geometry/util.h"
+
 template<PrimitiveType primitive_type, class Program, uint32_t flags>
 void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& vertices,
                                                    typename Program::Parameters const& parameters,
@@ -361,6 +365,215 @@ void Pipeline<p, P, flags>::rasterize_line(
 	// this function!
 	// The OpenGL specification section 3.5 may also come in handy.
 
+	auto gen_fragment = [&emit_fragment,&va,&vb](float x,float y) -> void {
+		// // check intersection here
+		// float t_min{}, t_max{};
+		// if(!Util::line_diamond_intersection(start.fb_position.xy(), end.fb_position.xy(), Vec2{x,y}, t_min, t_max)) {
+		// 	// info("shit! line does not intersect with pixel diamond!");
+		// 	return;
+		// };
+		// // check if the endpoint is inside this pixel
+		// if(std::abs(t_max - 1.0f) < 1e-8f && (std::abs(end.fb_position.x - x) + std::abs(end.fb_position.y - y) < 0.5f)) {
+		// 	// info("shit! end point is inside the pixel");
+		// 	return;
+		// } 
+		Fragment f{};
+		Vec2 pos{ x,y };
+		float t = dot((pos - va.fb_position.xy()),(vb.fb_position.xy() - va.fb_position.xy())) / (vb.fb_position.xy() - va.fb_position.xy()).norm_squared();
+		float z = (1.0f - t) * va.fb_position.z + t * vb.fb_position.z;
+		f.fb_position = Vec3{ x,y,z };
+		f.derivatives.fill(Vec2{0.0f,0.0f});
+		f.attributes = va.attributes;
+		// info("generate fragment (%d,%d)",static_cast<int>(x-0.5f),static_cast<int>(y-0.5f));
+		emit_fragment(f);
+	};
+
+	// Bresenham's Algorithm (float version)
+
+	/* naive version 
+	float x1 = va.fb_position.x;
+	float y1 = va.fb_position.y;
+	float x2 = vb.fb_position.x;
+	float y2 = vb.fb_position.y;
+	float delta_x = x2 - x1;
+	float delta_y = y2 - y1;
+	int x1_floor = static_cast<int>(std::floor(x1));
+	int x2_floor = static_cast<int>(std::floor(x2));
+	int y1_floor = static_cast<int>(std::floor(y1));
+	int y2_floor = static_cast<int>(std::floor(y2));
+	if(std::abs(delta_x) > std::abs(delta_y)) {
+		if(x1 > x2) {
+			std::swap(x1,x2);
+			std::swap(y1,y2);
+			std::swap(x1_floor,x2_floor);
+			std::swap(y1_floor,y2_floor);
+		}
+		if(y1 > y2) {
+			float k = delta_y / delta_x;
+			float epsilon = - (y1 - y1_floor) - k * (1.0-(x1-x1_floor));
+			int j = y1_floor; 
+			for(int i=x1_floor;i<=x2_floor;i++) {
+				gen_fragment(static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f);
+				if(epsilon >= 0.0) {
+					j -= 1;
+					epsilon -= 1.0f;
+				}
+				epsilon -= k;
+			}
+		} else {
+			float k = delta_y / delta_x;
+			float epsilon = -(1.0 - (y1 - y1_floor) - k * (1.0-(x1-x1_floor)));
+			int j = y1_floor; 
+			for(int i=x1_floor;i<=x2_floor;i++) {
+				gen_fragment(static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f);
+				if(epsilon >= 0.0) {
+					j += 1;
+					epsilon -= 1.0f;
+				}
+				epsilon += k;
+			}
+		}
+	} else {
+		if(y1 > y2) {
+			std::swap(x1,x2);
+			std::swap(y1,y2);
+			std::swap(x1_floor,x2_floor);
+			std::swap(y1_floor,y2_floor);
+		}
+		if(x1 > x2) {
+			float inv_k = delta_x / delta_y; 
+			float epsilon =  - (x1-x1_floor) - (1.0-(y1-y1_floor)) * inv_k;
+			int i = x1_floor;
+			for(int j=y1_floor;j<=y2_floor;j++) {
+				gen_fragment(static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f);
+				if(epsilon >= 0.0) {
+					i -= 1;
+					epsilon -= 1.0f;
+				}
+				epsilon -= inv_k;
+			}
+		} else {
+			float inv_k = delta_x / delta_y; 
+			float epsilon = -(1.0-(x1-x1_floor)- (1.0-(y1-y1_floor)) * inv_k);
+			int i = x1_floor;
+			for(int j=y1_floor;j<=y2_floor;j++) {
+				gen_fragment(static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f);
+				if(epsilon >= 0.0) {
+					i += 1;
+					epsilon -= 1.0f;
+				}
+				epsilon += inv_k;
+			}
+		}
+	}
+	*/
+
+	/* updated version
+	float x1 = va.fb_position.x;
+	float x2 = vb.fb_position.x;
+	float y1 = va.fb_position.y;
+	float y2 = vb.fb_position.y;
+	float delta_x = x2 - x1;
+	float delta_y = y2 - y1;
+	bool major_x = std::abs(delta_x) > std::abs(delta_y);
+	bool swapped = false;
+	if((major_x && (x1 > x2)) || (!major_x && (y1 > y2))) {
+		swapped = true;
+		std::swap(x1,x2);
+		std::swap(y1,y2);
+		delta_x = -delta_x;
+		delta_y = -delta_y;
+	}
+
+	int x1_floor = static_cast<int>(std::floor(x1));
+	int y1_floor = static_cast<int>(std::floor(y1));
+	int x2_floor = static_cast<int>(std::floor(x2));
+	int y2_floor = static_cast<int>(std::floor(y2));
+	float x_offset = x1 - x1_floor;
+	float y_offset = y1 - y1_floor;
+	int minor_direction = major_x ? (y1 < y2 ? 1 : -1 ) : (x1 < x2 ? 1 : -1);
+	int major_start = major_x ? x1_floor : y1_floor;
+	int major_end = major_x ? x2_floor : y2_floor;
+	int minor = major_x ? y1_floor : x1_floor;
+	float major_offset = major_x ? x_offset : y_offset;
+	float minor_offset = major_x ? y_offset : x_offset;
+	float err_accum = std::abs(major_x ? (delta_y / delta_x) : (delta_x / delta_y));
+	float err = (minor_direction == 1 ? -1.0f : 0.0f) + minor_direction * minor_offset + err_accum * (1.0f - major_offset);
+	for(int major=major_start;major<=major_end;major++) {
+		int x = major_x ? major : minor;
+		int y = major_x ? minor : major;
+		gen_fragment(swapped ? va : vb, swapped ? vb : va,static_cast<float>(x) + 0.5f,static_cast<float>(y) + 0.5f);
+		if(err > 0.0f) {
+			minor += minor_direction;
+			err -= 1.0f;
+		}
+		err += err_accum;
+	}
+	*/
+
+	// supercover line drawing algorithm (parameter stepping)
+	float x1 = va.fb_position.x;
+	float x2 = vb.fb_position.x;
+	float y1 = va.fb_position.y;
+	float y2 = vb.fb_position.y;
+	float delta_x = x2 - x1;
+	float delta_y = y2 - y1;
+	float abs_delta_x = std::abs(delta_x);
+	float abs_delta_y = std::abs(delta_y);
+
+	constexpr float EPSILON = 1e-8f;
+
+	if(abs_delta_x < EPSILON && abs_delta_y < EPSILON) {
+		return;
+	}
+
+	int step_x = (delta_x > EPSILON) ? 1 : (delta_x < -EPSILON ? -1 : 0);
+	int step_y = (delta_y > EPSILON) ? 1 : (delta_y < -EPSILON ? -1 : 0);
+
+	// inc of t when x move 1 pixel
+	float dt_dx = abs_delta_x > EPSILON ? 1.0f / abs_delta_x : std::numeric_limits<float>::infinity();
+	// inc of t when y move 1 pixel
+	float dt_dy = abs_delta_y > EPSILON ? 1.0f / abs_delta_y : std::numeric_limits<float>::infinity();
+
+	int x1_floor = static_cast<int>(std::floor(x1));
+	int y1_floor = static_cast<int>(std::floor(y1));
+	int x2_floor = static_cast<int>(std::floor(x2));
+	int y2_floor = static_cast<int>(std::floor(y2));
+
+	int curr_x = x1_floor;
+	int curr_y = y1_floor;
+
+	// next grid line
+	// if we move from big to small, the next is different
+	float next_t_x = step_x * (curr_x + (step_x > 0 ? step_x : 0) - x1) * dt_dx;
+	float next_t_y = step_y * (curr_y + (step_y > 0 ? step_y : 0) - y1) * dt_dy;
+
+	auto evaluate_point = [=](float t) -> Vec2 {
+    return Vec2{x1 + delta_x * t, y1 + delta_y * t};
+  };
+	
+	while(curr_x != x2_floor || curr_y != y2_floor) {
+		// Vec2 next_p_x = evaluate_point(next_t_x);
+		// Vec2 next_p_y = evaluate_point(next_t_y);
+		gen_fragment(static_cast<float>(curr_x) + 0.5f,static_cast<float>(curr_y) + 0.5f);
+		if(next_t_x > next_t_y) {
+			// move along y
+			curr_y += step_y;
+			next_t_y += dt_dy;
+		} else if (next_t_x < next_t_y)  {
+			// move along x
+			curr_x += step_x;
+			next_t_x += dt_dx;
+		} else {
+			curr_y += step_y;
+			next_t_y += dt_dy;
+			curr_x += step_x;
+			next_t_x += dt_dx;
+		}
+	}
+	gen_fragment(static_cast<float>(curr_x) + 0.5f,static_cast<float>(curr_y) + 0.5f);
+
+/*
 	{ // As a placeholder, draw a point in the middle of the line:
 		//(remove this code once you have a real implementation)
 		Fragment mid;
@@ -369,6 +582,7 @@ void Pipeline<p, P, flags>::rasterize_line(
 		mid.derivatives.fill(Vec2(0.0f, 0.0f));
 		emit_fragment(mid);
 	}
+*/
 
 }
 
