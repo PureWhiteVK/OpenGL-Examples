@@ -146,6 +146,9 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 			// "Less" means the depth test passes when the new fragment has depth less than the stored depth.
 			// A1T4: Depth_Less
 			// TODO: implement depth test! We want to only emit fragments that have a depth less than the stored depth, hence "Depth_Less".
+			if(fb_depth < f.fb_position.z) {
+				continue;
+			}
 		} else {
 			static_assert((flags & PipelineMask_Depth) <= Pipeline_Depth_Always, "Unknown depth test flag.");
 		}
@@ -634,12 +637,79 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 	if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Flat) {
 		// A1T3: flat triangles
 		// TODO: rasterize triangle (see block comment above this function).
+		// calculate bbox of va,vb and vc
+		auto min_vec2 = [](Vec2 a, Vec2 b) -> Vec2 {
+			return Vec2{ std::min(a.x,b.x), std::min(a.y,b.y) };
+		};
+		auto max_vec2 = [](Vec2 a, Vec2 b) -> Vec2 {
+			return Vec2{ std::max(a.x,b.x), std::max(a.y,b.y) }; 
+		};
+
+		Vec2 p0 = va.fb_position.xy();
+		Vec2 p1 = vb.fb_position.xy();
+		Vec2 p2 = vc.fb_position.xy();
+
+		Vec2 p_min = min_vec2(p0,min_vec2(p1,p2));
+		Vec2 p_max = max_vec2(p0,max_vec2(p1,p2));
+
+		int x_start = static_cast<int>(std::floor(p_min.x));
+		int x_end = static_cast<int>(std::floor(p_max.x));
+		int y_start = static_cast<int>(std::floor(p_min.y));
+		int y_end = static_cast<int>(std::floor(p_max.y));
+
+		auto inside_triangle = [](Vec2 p0, Vec2 p1, Vec2 p2, Vec2 pp) -> bool {
+			Vec2 a = p1 - p0;
+			Vec2 a1 = pp - p0;
+			Vec2 b = p2 - p1;
+			Vec2 b1 = pp - p1;
+			Vec2 c = p0 - p2;
+			Vec2 c1 = pp - p2;
+
+			auto cross = [](Vec2 a, Vec2 b) -> float {
+				return (a.x * b.y - a.y * b.x);
+			};
+
+			float e0 = cross(a,a1);
+			float e1 = cross(b,b1);
+			float e2 = cross(c,c1);
+			// for both CCW and CW
+			return (e0 >= 0.0f && e1 >= 0.0f && e2 >= 0.0f) || (e0 <= 0.0f && e1 <= 0.0f && e2 <= 0.0f);
+		};
+		
+
+		for(int i=x_start;i<=x_end;i++) {
+			for(int j=y_start;j<=y_end;j++) {
+				Vec2 pp{static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f  };
+				if(inside_triangle(p0,p1,p2,pp)) {
+					Fragment f{};
+					// calculate barycentric coordinate of pp inside triangle p0,p1,p2 (as 2D triangle)
+					float gamma = ((p0.y - p1.y) * pp.x + (p1.x - p0.x) * pp.y + p0.x * p1.y - p1.x * p0.y) / ((p0.y - p1.y) * p2.x + (p1.x - p0.x) * p2.y + p0.x * p1.y - p1.x * p0.y);
+					float beta = ((p0.y - p2.y) * pp.x + (p2.x - p0.x) * pp.y + p0.x * p2.y - p2.x * p0.y) / ((p0.y - p2.y) * p1.x + (p2.x - p0.x) * p1.y + p0.x * p2.y - p2.x * p0.y);
+					float alpha = 1.0f - beta - gamma;
+					float z_w_div = alpha * va.fb_position.z * va.inv_w + beta * vb.fb_position.z * vb.inv_w + gamma * vc.fb_position.z * vc.inv_w;
+					float inv_w = alpha * va.inv_w + beta * vb.inv_w + gamma * vc.inv_w;
+					float z = z_w_div / inv_w;
+
+
+					// float t = dot((pp - va.fb_position.xy()),(vb.fb_position.xy() - va.fb_position.xy())) / (vb.fb_position.xy() - va.fb_position.xy()).norm_squared();
+					// float z = (1.0f - t) * va.fb_position.z + t * vb.fb_position.z;
+					f.fb_position = Vec3{ pp.x,pp.y,z };
+					f.derivatives.fill(Vec2{0.0f,0.0f});
+					f.attributes = va.attributes;
+					for(int i=0;i<int(FA);i++) {
+						float a = alpha * va.attributes[i] * va.inv_w + beta * vb.attributes[i] * vb.inv_w + gamma * vc.attributes[i] * vc.inv_w;
+						f.attributes[i] = a / inv_w;
+					}
+					emit_fragment(f);
+				}
+			}
+		}
 
 		// As a placeholder, here's code that draws some lines:
 		//(remove this and replace it with a real solution)
-		Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(va, vb, emit_fragment);
-		Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(vb, vc, emit_fragment);
-		Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(vc, va, emit_fragment);
+		// Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(va, vb, emit_fragment);
+		// Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(vb, vc, emit_fragment);
+		// Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(vc, va, emit_fragment);
 	} else if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Smooth) {
 		// A1T5: screen-space smooth triangles
 		// TODO: rasterize triangle (see block comment above this function).
