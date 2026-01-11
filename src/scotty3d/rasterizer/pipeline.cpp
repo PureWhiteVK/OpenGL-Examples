@@ -394,7 +394,6 @@ void Pipeline<p, P, flags>::clip_triangle(
     }
     curr_vertices = std::move(next_vertices);
     if (curr_vertices.size() < 3) {
-      warn("triangle is clipped.");
       return;
     }
   }
