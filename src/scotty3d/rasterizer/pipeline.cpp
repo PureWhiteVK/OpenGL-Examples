@@ -15,43 +15,43 @@ template<PrimitiveType primitive_type, class Program, uint32_t flags>
 void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& vertices,
                                                    typename Program::Parameters const& parameters,
                                                    Framebuffer* framebuffer_) {
-	// Framebuffer must be non-null:
-	assert(framebuffer_);
+  // Framebuffer must be non-null:
+  assert(framebuffer_);
 	auto& framebuffer = *framebuffer_;
 
-	// A1T7: sample loop
+  // A1T7: sample loop
 	// TODO: update this function to rasterize to *all* sample locations in the framebuffer.
-	//  	 This will probably involve inserting a loop of the form:
+  //  	 This will probably involve inserting a loop of the form:
 	// 		 	std::vector< Vec3 > const &samples = framebuffer.sample_pattern.centers_and_weights;
-	//      	for (uint32_t s = 0; s < samples.size(); ++s) { ... }
-	//   	 around some subset of the code.
+  //      	for (uint32_t s = 0; s < samples.size(); ++s) { ... }
+  //   	 around some subset of the code.
 	// 		 You will also need to transform the input and output of the rasterize_* functions to
 	// 	     account for the fact they deal with pixels centered at (0.5,0.5).
 
-	std::vector<ShadedVertex> shaded_vertices;
-	shaded_vertices.reserve(vertices.size());
+  std::vector<ShadedVertex> shaded_vertices;
+  shaded_vertices.reserve(vertices.size());
 
-	//--------------------------
-	// shade vertices:
+  //--------------------------
+  // shade vertices:
 	for (auto const& v : vertices) {
-		ShadedVertex sv;
+    ShadedVertex sv;
 		Program::shade_vertex(parameters, v.attributes, &sv.clip_position, &sv.attributes);
-		shaded_vertices.emplace_back(sv);
-	}
+    shaded_vertices.emplace_back(sv);
+  }
 
-	//--------------------------
-	// assemble + clip + homogeneous divide vertices:
-	std::vector<ClippedVertex> clipped_vertices;
+  //--------------------------
+  // assemble + clip + homogeneous divide vertices:
+  std::vector<ClippedVertex> clipped_vertices;
 
-	// reserve some space to avoid reallocations later:
-	if constexpr (primitive_type == PrimitiveType::Lines) {
-		// clipping lines can never produce more than one vertex per input vertex:
-		clipped_vertices.reserve(shaded_vertices.size());
-	} else if constexpr (primitive_type == PrimitiveType::Triangles) {
-		// clipping triangles can produce up to 8 vertices per input vertex:
-		clipped_vertices.reserve(shaded_vertices.size() * 8);
-	}
-	// clang-format off
+  // reserve some space to avoid reallocations later:
+  if constexpr (primitive_type == PrimitiveType::Lines) {
+    // clipping lines can never produce more than one vertex per input vertex:
+    clipped_vertices.reserve(shaded_vertices.size());
+  } else if constexpr (primitive_type == PrimitiveType::Triangles) {
+    // clipping triangles can produce up to 8 vertices per input vertex:
+    clipped_vertices.reserve(shaded_vertices.size() * 8);
+  }
+  // clang-format off
 
 	//coefficients to map from clip coordinates to framebuffer (i.e., "viewport") coordinates:
 	//x: [-1,1] -> [0,width]
@@ -171,12 +171,12 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 			} else if constexpr ((flags & PipelineMask_Blend) == Pipeline_Blend_Add) {
 				// A1T4: Blend_Add
 				// TODO: framebuffer color should have fragment color multiplied by fragment opacity added to it.
-				fb_color = sf.color; //<-- replace this line
+				fb_color += sf.color * sf.opacity;
 			} else if constexpr ((flags & PipelineMask_Blend) == Pipeline_Blend_Over) {
 				// A1T4: Blend_Over
 				// TODO: set framebuffer color to the result of "over" blending (also called "alpha blending") the fragment color over the framebuffer color, using the fragment's opacity
 				// 		 You may assume that the framebuffer color has its alpha premultiplied already, and you just want to compute the resulting composite color
-				fb_color = sf.color; //<-- replace this line
+				fb_color = (1.0f - sf.opacity) * fb_color + sf.opacity * sf.color;
 			} else {
 				static_assert((flags & PipelineMask_Blend) <= Pipeline_Blend_Over, "Unknown blending flag.");
 			}
@@ -315,9 +315,96 @@ void Pipeline<p, P, flags>::clip_triangle(
 	std::function<void(ShadedVertex const&)> const& emit_vertex) {
 	// A1EC: clip_triangle
 	// TODO: correct code!
-	emit_vertex(va);
-	emit_vertex(vb);
-	emit_vertex(vc);
+	// emit_vertex(va);
+	// emit_vertex(vb);
+	// emit_vertex(vc);
+	// return;
+
+	std::vector<ShadedVertex> curr_vertices{va, vb, vc};
+  static std::array<Vec4, 6> planes{
+      // -w <= x -> 0 <= x + w;
+      Vec4{1.0f, 0.0f, 0.0f, 1.0f},
+      // x <= w -> 0 <= w - x;
+      Vec4{-1.0f, 0.0f, 0.0f, 1.0f},
+      // -w <= y -> 0 <= y + w;
+      Vec4{0.0f, 1.0f, 0.0f, 1.0f},
+      // y <= w -> 0 <= w - y;
+      Vec4{0.0f, -1.0f, 0.0f, 1.0f},
+      // -w <= z -> 0 <= z + w;
+      Vec4{0.0f, 0.0f, 1.0f, 1.0f},
+      // z <= w -> 0 <= w - z;
+      Vec4{0.0f, 0.0f, -1.0f, 1.0f},
+  };
+
+  auto plane_intersection = [](ShadedVertex v0, ShadedVertex v1, Vec4 plane,
+                               ShadedVertex &out) -> int {
+    float d0 = dot(v0.clip_position, plane);
+    float d1 = dot(v1.clip_position, plane);
+    int intersection_case = ((d0 >= -1e-6f) << 1) | (d1 >= -1e-6f);
+    // 0b00 -> both outside
+    // 0b01 -> v0 outside, v1 inside
+    // 0b10 -> v0 inside, v1 outside
+    // 0b11 -> both inside
+    switch (intersection_case) {
+    case 0b00: {
+      break;
+    }
+    case 0b01:
+      [[fallthrough]];
+    case 0b10: {
+      float t = d0 / (d0 - d1);
+      out = lerp(v0, v1, t);
+      break;
+    }
+    case 0b11: {
+      out = v1;
+      break;
+    }
+    }
+    return intersection_case;
+  };
+
+  for (const Vec4 &plane : planes) {
+    std::vector<ShadedVertex> next_vertices{};
+    for (int i = 0; i < curr_vertices.size(); i++) {
+      // vn,vn+1
+      int j = (i + 1) % curr_vertices.size();
+      ShadedVertex curr_vertex{};
+      int intersection_case = plane_intersection(
+          curr_vertices[i], curr_vertices[j], plane, curr_vertex);
+      switch (intersection_case) {
+      // 0b00 -> both outside
+      // 0b01 -> v0 outside, v1 inside
+      // 0b10 -> v0 inside, v1 outside
+      // 0b11 -> both inside
+      case 0b01: {
+        // here we should add both new vertex and end point, as this point is
+        // also a valid point here
+        next_vertices.emplace_back(std::move(curr_vertex));
+        next_vertices.emplace_back(curr_vertices[j]);
+        break;
+      }
+      case 0b10:
+        [[fallthrough]];
+      case 0b11: {
+        next_vertices.emplace_back(std::move(curr_vertex));
+        break;
+      }
+      }
+    }
+    curr_vertices = std::move(next_vertices);
+    if (curr_vertices.size() < 3) {
+      warn("triangle is clipped.");
+      return;
+    }
+  }
+
+  // then we can triangulate polygon here
+  for (int i = 2; i < curr_vertices.size(); i++) {
+    emit_vertex(curr_vertices[0]);
+    emit_vertex(curr_vertices[i - 1]);
+    emit_vertex(curr_vertices[i]);
+  }
 }
 
 // -------------------------------------------------------------------------
@@ -634,7 +721,9 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 	//  same code paths. Be aware, however, that all of them need to remain working!
 	//  (e.g., if you break Flat while implementing Correct, you won't get points
 	//   for Flat.)
+/*
 	if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Flat) {
+*/
 		// A1T3: flat triangles
 		// TODO: rasterize triangle (see block comment above this function).
 		// calculate bbox of va,vb and vc
@@ -653,9 +742,9 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 		Vec2 p_max = max_vec2(p0,max_vec2(p1,p2));
 
 		int x_start = static_cast<int>(std::floor(p_min.x));
-		int x_end = static_cast<int>(std::floor(p_max.x));
+		int x_end = static_cast<int>(std::ceil(p_max.x));
 		int y_start = static_cast<int>(std::floor(p_min.y));
-		int y_end = static_cast<int>(std::floor(p_max.y));
+		int y_end = static_cast<int>(std::ceil(p_max.y));
 
 		auto inside_triangle = [](Vec2 p0, Vec2 p1, Vec2 p2, Vec2 pp) -> bool {
 			Vec2 a = p1 - p0;
@@ -675,36 +764,80 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 			// for both CCW and CW
 			return (e0 >= 0.0f && e1 >= 0.0f && e2 >= 0.0f) || (e0 <= 0.0f && e1 <= 0.0f && e2 <= 0.0f);
 		};
+
+		auto gen_fragment = [&va,&vb,&vc,p0,p1,p2,&inside_triangle](Vec2 pp, Fragment& f) -> bool {
+			// calculate barycentric coordinate of pp inside triangle p0,p1,p2 (as 2D triangle)
+			float gamma = ((p0.y - p1.y) * pp.x + (p1.x - p0.x) * pp.y + p0.x * p1.y - p1.x * p0.y) / ((p0.y - p1.y) * p2.x + (p1.x - p0.x) * p2.y + p0.x * p1.y - p1.x * p0.y);
+			float beta = ((p0.y - p2.y) * pp.x + (p2.x - p0.x) * pp.y + p0.x * p2.y - p2.x * p0.y) / ((p0.y - p2.y) * p1.x + (p2.x - p0.x) * p1.y + p0.x * p2.y - p2.x * p0.y);
+			float alpha = 1.0f - beta - gamma;
+			float z_w_div = alpha * va.fb_position.z * va.inv_w + beta * vb.fb_position.z * vb.inv_w + gamma * vc.fb_position.z * vc.inv_w;
+			float inv_w = alpha * va.inv_w + beta * vb.inv_w + gamma * vc.inv_w;
+			float z = z_w_div / inv_w;
+			f.fb_position = Vec3{ pp.x,pp.y,z };
+			f.derivatives.fill(Vec2{0.0f,0.0f});
+			if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Flat) {
+				f.attributes = va.attributes;
+			} else if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Smooth) {					
+				for(int i=0;i<FA;i++) {
+					float a = alpha * va.attributes[i] + beta * vb.attributes[i] + gamma * vc.attributes[i];
+					f.attributes[i] = a;
+				}
+			} else if constexpr ((flags & PipelineMask_Interp) == Pipeline_Interp_Correct) {
+				for(int i=0;i<FA;i++) {
+					float a = alpha * va.attributes[i] * va.inv_w + beta * vb.attributes[i] * vb.inv_w + gamma * vc.attributes[i] * vc.inv_w;
+					f.attributes[i] = a / inv_w;
+				}
+			}
+			if(inside_triangle(p0,p1,p2,pp)) {
+				return true;
+			}
+			return false;
+		};
 		
-
-		for(int i=x_start;i<=x_end;i++) {
-			for(int j=y_start;j<=y_end;j++) {
-				Vec2 pp{static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f  };
-				if(inside_triangle(p0,p1,p2,pp)) {
-					Fragment f{};
-					// calculate barycentric coordinate of pp inside triangle p0,p1,p2 (as 2D triangle)
-					float gamma = ((p0.y - p1.y) * pp.x + (p1.x - p0.x) * pp.y + p0.x * p1.y - p1.x * p0.y) / ((p0.y - p1.y) * p2.x + (p1.x - p0.x) * p2.y + p0.x * p1.y - p1.x * p0.y);
-					float beta = ((p0.y - p2.y) * pp.x + (p2.x - p0.x) * pp.y + p0.x * p2.y - p2.x * p0.y) / ((p0.y - p2.y) * p1.x + (p2.x - p0.x) * p1.y + p0.x * p2.y - p2.x * p0.y);
-					float alpha = 1.0f - beta - gamma;
-					float z_w_div = alpha * va.fb_position.z * va.inv_w + beta * vb.fb_position.z * vb.inv_w + gamma * vc.fb_position.z * vc.inv_w;
-					float inv_w = alpha * va.inv_w + beta * vb.inv_w + gamma * vc.inv_w;
-					float z = z_w_div / inv_w;
-
-
-					// float t = dot((pp - va.fb_position.xy()),(vb.fb_position.xy() - va.fb_position.xy())) / (vb.fb_position.xy() - va.fb_position.xy()).norm_squared();
-					// float z = (1.0f - t) * va.fb_position.z + t * vb.fb_position.z;
-					f.fb_position = Vec3{ pp.x,pp.y,z };
-					f.derivatives.fill(Vec2{0.0f,0.0f});
-					f.attributes = va.attributes;
-					for(int i=0;i<int(FA);i++) {
-						float a = alpha * va.attributes[i] * va.inv_w + beta * vb.attributes[i] * vb.inv_w + gamma * vc.attributes[i] * vc.inv_w;
-						f.attributes[i] = a / inv_w;
-					}
-					emit_fragment(f);
+		// here we should rasterize this triangle with 2x2 tile once
+		for(int i=x_start;i<=x_end;i+=2) {
+			for(int j=y_start;j<=y_end;j+=2) {
+				std::array<Fragment, 4> frags{};
+				std::array<bool,4> emit_flags{};
+				std::array<Vec2, 4> points {
+					// 0b00
+					Vec2{static_cast<float>(i) + 0.5f,static_cast<float>(j) + 0.5f  },
+					// 0b01
+					Vec2{static_cast<float>(i) + 0.5f,static_cast<float>(j + 1) + 0.5f  },
+					// 0b10
+					Vec2{static_cast<float>(i + 1) + 0.5f,static_cast<float>(j) + 0.5f  },
+					// 0b11
+					Vec2{static_cast<float>(i + 1) + 0.5f,static_cast<float>(j + 1) + 0.5f  }
+				};
+				emit_flags[0] = gen_fragment(points[0],frags[0]);
+				emit_flags[1] = gen_fragment(points[1],frags[1]);
+				emit_flags[2] = gen_fragment(points[2],frags[2]);
+				emit_flags[3] = gen_fragment(points[3],frags[3]);
+				std::array<Vec2, FD> derivatives{};
+				for(int d_i=0;d_i<FD;d_i++) {
+					derivatives[d_i].x = frags[0b10].attributes[d_i] - frags[0b00].attributes[d_i];
+					derivatives[d_i].y = frags[0b01].attributes[d_i] - frags[0b00].attributes[d_i];
+				}
+				if (emit_flags[0b00]) {
+					frags[0b00].derivatives = derivatives;
+					emit_fragment(frags[0b00]);	
+				}
+				if (emit_flags[0b01]) {
+					frags[0b01].derivatives = derivatives;
+					emit_fragment(frags[0b01]);	
+				}
+				if (emit_flags[0b10]) {
+					frags[0b10].derivatives = derivatives;
+					emit_fragment(frags[0b10]);	
+				}
+				if (emit_flags[0b11]) {
+					frags[0b11].derivatives = derivatives;
+					emit_fragment(frags[0b11]);	
 				}
 			}
 		}
 
+/*
 		// As a placeholder, here's code that draws some lines:
 		//(remove this and replace it with a real solution)
 		// Pipeline<PrimitiveType::Lines, P, flags>::rasterize_line(va, vb, emit_fragment);
@@ -725,6 +858,7 @@ void Pipeline<p, P, flags>::rasterize_triangle(
 		//(remove this and replace it with a real solution)
 		Pipeline<PrimitiveType::Lines, P, (flags & ~PipelineMask_Interp) | Pipeline_Interp_Smooth>::rasterize_triangle(va, vb, vc, emit_fragment);
 	}
+*/
 }
 
 //-------------------------------------------------------------------------
