@@ -50,11 +50,11 @@ target_sources(
   "deps/imgui/imstb_textedit.h"
   "deps/imgui/imstb_truetype.h"
   ## nfd
-  $<$<PLATFORM_ID:Darwin>:"deps/nfd/nfd_cocoa.m">
-  $<$<PLATFORM_ID:Linux>:"deps/nfd/nfd_gtk.c">
+  $<$<PLATFORM_ID:Darwin>:deps/nfd/nfd_cocoa.m>
+  $<$<PLATFORM_ID:Linux>:deps/nfd/nfd_gtk.c>
+  $<$<PLATFORM_ID:Windows>:deps/nfd/nfd_win.cpp>
   "deps/nfd/nfd_common.c"
   "deps/nfd/nfd_common.h"
-  "deps/nfd/nfd_win.cpp"
   "deps/nfd/nfd.h"
   ## sejp
   "deps/sejp/sejp.cpp"
