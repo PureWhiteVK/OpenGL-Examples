@@ -91,6 +91,22 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 		static_assert(primitive_type == PrimitiveType::Lines, "Unsupported primitive type.");
 	}
 
+	// TODO: we offset the vertices instead of transform the rasterize_* functions
+	size_t samples = framebuffer.sample_pattern.centers_and_weights.size();
+	for (uint32_t s = 0;s < samples; ++s) { 
+	// helper used to put output of rasterization functions into fragments:
+	
+	Vec2 offset = Vec2{0.5f,0.5f} - framebuffer.sample_pattern.centers_and_weights[s].xy();
+
+	
+	auto offset_vertex = [&](ClippedVertex const & v) {
+		ClippedVertex cv;
+		cv.fb_position = Vec3{ v.fb_position.x + offset.x, v.fb_position.y + offset.y, v.fb_position.z };
+		cv.inv_w = v.inv_w;
+		cv.attributes = v.attributes;
+		return cv; 
+	};
+	
 	//--------------------------
 	// rasterize primitives:
 
@@ -98,15 +114,15 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 
 	// helper used to put output of rasterization functions into fragments:
 	auto emit_fragment = [&](Fragment const& f) { fragments.emplace_back(f); };
-
+	
 	// actually do rasterization:
 	if constexpr (primitive_type == PrimitiveType::Lines) {
 		for (uint32_t i = 0; i + 1 < clipped_vertices.size(); i += 2) {
-			rasterize_line(clipped_vertices[i], clipped_vertices[i + 1], emit_fragment);
+			rasterize_line(offset_vertex(clipped_vertices[i]), offset_vertex(clipped_vertices[i + 1]), emit_fragment);
 		}
 	} else if constexpr (primitive_type == PrimitiveType::Triangles) {
 		for (uint32_t i = 0; i + 2 < clipped_vertices.size(); i += 3) {
-			rasterize_triangle(clipped_vertices[i], clipped_vertices[i + 1], clipped_vertices[i + 2], emit_fragment);
+			rasterize_triangle(offset_vertex(clipped_vertices[i]), offset_vertex(clipped_vertices[i + 1]), offset_vertex(clipped_vertices[i + 2]), emit_fragment);
 		}
 	} else {
 		static_assert(primitive_type == PrimitiveType::Lines, "Unsupported primitive type.");
@@ -132,8 +148,8 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 		}
 
 		// local names that refer to destination sample in framebuffer:
-		float& fb_depth = framebuffer.depth_at(x, y, 0);
-		Spectrum& fb_color = framebuffer.color_at(x, y, 0);
+		float& fb_depth = framebuffer.depth_at(x, y, s);
+		Spectrum& fb_color = framebuffer.color_at(x, y, s);
 
 
 		// depth test:
@@ -192,6 +208,7 @@ void Pipeline<primitive_type, Program, flags>::run(std::vector<Vertex> const& ve
 			     "wrong with the clip_triangle function.",
 			     out_of_range);
 		}
+	}
 	}
 }
 
