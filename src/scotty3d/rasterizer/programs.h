@@ -122,8 +122,12 @@ struct Lambertian {
 		//  --> 'lod' is \lambda_base from equation (3.17)
 		// reading onward, you will discover that \rho can be computed in a number of ways
 		//  it is up to you to select one that makes sense in this context
-
-		float lod = 0.0f; //<-- replace this line
+		// fwidth means 1 pixel convers how many texels
+		Vec2 fwitdh = fdx_texcoord.abs() + fdy_texcoord.abs();
+		// rho means the texture is scaled for how many times
+		// then scale factor can be calculated by default_size / current_size
+		float rho = std::max(wh.x * fwitdh.x, wh.y * fwitdh.y);
+		float lod = std::log2(rho); //<-- replace this line
 		//-----
 
 		Vec3 normal = fa_normal.unit();
