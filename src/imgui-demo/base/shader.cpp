@@ -164,12 +164,10 @@ void main() {
 }
 )";
 
-static const char *grid_fs = R"(\
+static const char* grid_fs = R"(
 #version 330 core
-
 in vec3 near_point;
 in vec3 far_point;
-
 out vec4 out_color;
 
 uniform mat4 proj_view;
@@ -178,9 +176,9 @@ uniform float far;
 
 uniform vec3 grid_color = vec3(0.1,0.1,0.1);
 uniform float grid_size = 0.5;
-uniform float grid_size_scale = 5;
-uniform float grid_thickness1 = 1.5;
-uniform float grid_thickness2 = 2.5;
+uniform float minor_grid_scale = 5;
+uniform float grid_fade_size = 1.0;
+uniform float grid_thickness = 2.0;
 uniform float max_depth = 0.5;
 
 float compute_depth(vec3 pos) {
@@ -198,51 +196,224 @@ float compute_linear_depth01(float zndc) {
   return z01;
 }
 
-vec4 draw_grid(vec3 world_pos, float grid_size, float grid_thickness, bool draw_axis){
+vec4 draw_grid(vec3 world_pos, float grid_size, float grid_thickness, float fade_size){
   vec2 grid_coord = world_pos.xz / grid_size;
-  // pixel size in world space
-  vec2 pixel_size = fwidth(grid_coord);
-  // distance to grid line in world space
-  vec2 grid_dist_world = abs(fract(grid_coord - 0.5) - 0.5);
-  // distance to grid line in screen space
-  vec2 grid_dist_pixel = grid_dist_world / pixel_size;
-  // select min distance as grid line
-  float grid_dist = min(grid_dist_pixel.x,grid_dist_pixel.y);
-  float draw_line = smoothstep(grid_thickness,0.0,grid_dist);
+  vec2 grid_dist_world = abs(grid_coord - floor(grid_coord + 0.5));
+  vec2 grid_size_scaler = fwidth(grid_coord);
+  // grid size in screen space
+  vec2 grid_size_pixel = 1.0 / grid_size_scaler;
+  float min_spacing = min(grid_size_pixel.x,grid_size_pixel.y);
+  float size_fade = smoothstep(0.0,fade_size,min_spacing);
+  vec2 grid_dist_screen = grid_dist_world * grid_size_pixel;
+  float half_grid_thickness = 0.5 * grid_thickness;
+  vec2 cov = clamp((half_grid_thickness - grid_dist_screen) + 0.5,0.0,1.0);
+  float draw = max(cov.x,cov.y);
+  float x_axis = float(abs(grid_coord.x) < half_grid_thickness * grid_size_scaler.x);
+  float z_axis = float(abs(grid_coord.y) < half_grid_thickness * grid_size_scaler.y);
+  vec3 color = x_axis * (1.0 - z_axis) * vec3(1.0,0.0,0.0) + 
+               z_axis * (1.0 - x_axis) * vec3(0.0,0.0,1.0) + 
+               step(x_axis + z_axis,0.5) * grid_color;
+  return vec4(color, draw * size_fade);
+}
 
-  vec3 curr_color = grid_color;
-  vec2 grid_index = floor(grid_coord);
-  vec2 min_axis_line_dist = min(pixel_size,grid_size);
-
-  if(!draw_axis) {
-    return vec4(curr_color,draw_line);
-  }
-
-  if(abs(world_pos.x) < min_axis_line_dist.x) {
-    curr_color.xyz = vec3(1.0,0.0,0.0);
-  }
-  if(abs(world_pos.z) < min_axis_line_dist.y) {
-    curr_color.xyz = vec3(0.0,0.0,1.0);
-  }
-  return vec4(curr_color,draw_line);
+vec4 alpha_blend(vec4 fg, vec4 bg) {
+  return vec4(
+    fg.rgb * fg.a + bg.rgb * (1.0 - fg.a),
+    fg.a + bg.a * (1.0 - fg.a)
+  );
 }
 
 void main() {
     float t = -near_point.y / (far_point.y - near_point.y);
     vec3 world_pos = near_point + t * (far_point - near_point);
-    float depth_clip = compute_depth(world_pos);
-    gl_FragDepth = depth_clip;
-    float linear_depth_01 = compute_linear_depth01(depth_clip * 2.0 - 1.0);
-    float depth_fading = (1.0 / max_depth) * max(0.0, max_depth - linear_depth_01);
+    float depth = compute_depth(world_pos);
+    float linear_depth = compute_linear_depth01(depth * 2.0 - 1.0);
+    gl_FragDepth = depth;
+    float draw_depth = mix(1.0,0.0,max(linear_depth,max_depth));
     float draw_plane = float(t>0.0);
-    
-    vec4 grid1 = draw_grid(world_pos,grid_size,grid_thickness1,true);
-    vec4 grid2 = draw_grid(world_pos,grid_size * grid_size_scale,grid_thickness2,true);
-
-    vec4 color = 0.5 * (grid1 + grid2);
-    
-    out_color = vec4(color.xyz,draw_plane * depth_fading * color.w);
+    // minor grid
+    vec4 color1 = draw_grid(world_pos,grid_size, grid_thickness * 0.5, grid_fade_size);
+    // major grid
+    vec4 color2 = draw_grid(world_pos,grid_size * minor_grid_scale, grid_thickness, grid_fade_size * minor_grid_scale);
+    // alpha blend two color (color1 is base, and color2 is foreground)
+    vec4 color = alpha_blend(color2, color1);
+    out_color = vec4(
+      color.rgb,
+      draw_depth * draw_plane * color.a
+    );
 }
 )";
+
+// static const char *grid_fs = R"(
+// #version 330 core
+// in vec3 near_point;
+// in vec3 far_point;
+// out vec4 out_color;
+
+// uniform mat4 proj_view;
+// uniform float near;
+// uniform float far;
+
+// uniform vec3 grid_color = vec3(0.1,0.1,0.1);
+// uniform float grid_size = 0.5;
+// uniform float grid_thickness = 2.0;
+// uniform float max_depth = 0.5;
+// uniform float set_depth = 0.0;
+
+// uniform float use_clip = 0.0;
+// uniform float use_mix = 0.0;
+// uniform float use_smoothstep = 0.0;
+// uniform float use_aa = 0.0;
+
+// float compute_depth(vec3 pos) {
+//     vec4 clip_space_pos = proj_view * vec4(pos.xyz, 1.0);
+//     // re-arrange depth to 0~1
+//     return (clip_space_pos.z / clip_space_pos.w) * 0.5 + 0.5;
+// }
+
+// float compute_linear_depth01(float zndc) {
+//   // float k1 = (far + near) / (far - near);
+//   // float k2 = -2.0 * near * far / (far - near);
+//   // float z = k2 / (zndc - k1);
+//   // float z01 = (z - near) / (far-near);
+//   float z01 = (2.0 * near) / (near + far - (far - near) * zndc);
+//   return z01;
+// }
+
+// vec4 draw_grid(vec3 world_pos, float grid_size, float grid_thickness){
+//   vec2 grid_coord = world_pos.xz / grid_size;
+//   vec2 grid_dist_world = abs(grid_coord - floor(grid_coord + 0.5));
+//   vec2 gird_pixel_size = fwidth(grid_coord);
+//   vec2 grid_dist_screen = grid_dist_world / gird_pixel_size;
+//   float half_grid_thickness = 0.5 * grid_thickness;
+//   float min_grid_dist_screen = min(grid_dist_screen.x, grid_dist_screen.y);
+//   vec2 cov = clamp((half_grid_thickness - grid_dist_screen) + 0.5,0.0,1.0);
+//   float draw1 = float(min_grid_dist_screen < half_grid_thickness);
+//   float draw2 = mix(half_grid_thickness,0.0,min_grid_dist_screen);
+//   float draw3 = smoothstep(half_grid_thickness,0.0,min_grid_dist_screen);
+//   float draw4 = max(cov.x,cov.y);
+//   float draw = draw1 * use_clip + draw2 * use_mix + draw3 * use_smoothstep + draw4 * use_aa;
+//   float x_axis = float(abs(grid_coord.x) < half_grid_thickness * gird_pixel_size.x);
+//   float z_axis = float(abs(grid_coord.y) < half_grid_thickness * gird_pixel_size.y);
+//   vec3 color = x_axis * (1.0 - z_axis) * vec3(1.0,0.0,0.0) + 
+//                z_axis * (1.0 - x_axis) * vec3(0.0,0.0,1.0) + 
+//                step(x_axis + z_axis,0.5) * grid_color;
+//   return vec4(color, draw);
+// }
+
+// vec4 alpha_blend(vec4 fg, vec4 bg) {
+//   return vec4(
+//     fg.rgb * fg.a + bg.rgb * (1.0 - fg.a),
+//     fg.a + bg.a * (1.0 - fg.a)
+//   );
+// }
+
+// void main() {
+//     float t = -near_point.y / (far_point.y - near_point.y);
+//     vec3 world_pos = near_point + t * (far_point - near_point);
+//     float depth = compute_depth(world_pos);
+//     gl_FragDepth = set_depth * depth;
+//     float depth01 = compute_linear_depth01(depth * 2.0 - 1.0);
+//     float draw_depth = mix(max_depth,0.0,depth01);
+//     float draw_plane = float(t>0.0);
+//     vec4 color1 = draw_grid(world_pos,grid_size, grid_thickness * 0.5);
+//     vec4 color2 = draw_grid(world_pos,grid_size * 5, grid_thickness);
+//     // alpha blend two color (color1 is base, and color2 is foreground)
+//     vec4 color = alpha_blend(color2, color1);
+//     out_color = vec4(
+//       color.rgb,
+//       draw_depth * draw_plane * color.a
+//     );
+// }
+// )";
+
+// static const char *grid_fs = R"(\
+// #version 330 core
+
+// in vec3 near_point;
+// in vec3 far_point;
+
+// out vec4 out_color;
+
+// uniform mat4 proj_view;
+// uniform float near;
+// uniform float far;
+
+// uniform vec3 grid_color = vec3(0.1,0.1,0.1);
+// uniform float grid_size = 0.5;
+// uniform float grid_size_scale = 5;
+// uniform float grid_thickness1 = 1.5;
+// uniform float grid_thickness2 = 2.5;
+// uniform float max_depth = 0.5;
+// uniform float set_depth = 0.0;
+
+// float compute_depth(vec3 pos) {
+//     vec4 clip_space_pos = proj_view * vec4(pos.xyz, 1.0);
+//     // re-arrange depth to 0~1
+//     return (clip_space_pos.z / clip_space_pos.w) * 0.5 + 0.5;
+// }
+
+// float compute_linear_depth01(float zndc) {
+//   // float k1 = (far + near) / (far - near);
+//   // float k2 = -2.0 * near * far / (far - near);
+//   // float z = k2 / (zndc - k1);
+//   // float z01 = (z - near) / (far-near);
+//   float z01 = (2.0 * near) / (near + far - (far - near) * zndc);
+//   return z01;
+// }
+
+// vec4 draw_grid(vec3 world_pos, float grid_size, float grid_thickness, bool draw_axis){
+//   vec2 grid_coord = world_pos.xz / grid_size;
+//   vec2 grid_dist_world = abs(grid_coord - floor(grid_coord + 0.5));
+//   float draw = float(
+//     (abs(grid_dist_world.x) < grid_thickness) ||
+//     (abs(grid_dist_world.y) < grid_thickness)
+//   );
+//   return vec4(grid_color,draw);
+//   // pixel size in world space
+//   // vec2 pixel_size = fwidth(grid_coord);
+//   // distance to grid line in world space
+//   // vec2 grid_dist_world = abs(fract(grid_coord - 0.5) - 0.5);
+//   // distance to grid line in screen space
+//   // vec2 grid_dist_pixel = grid_dist_world / pixel_size;
+//   // select min distance as grid line
+//   // float grid_dist = min(grid_dist_pixel.x,grid_dist_pixel.y);
+//   // float draw_line = smoothstep(grid_thickness,0.0,grid_dist);
+
+//   // vec3 curr_color = grid_color;
+//   // vec2 grid_index = floor(grid_coord);
+//   // vec2 min_axis_line_dist = min(pixel_size,grid_size);
+
+//   // if(!draw_axis) {
+//   //   return vec4(curr_color,draw_line);
+//   // }
+
+//   // if(abs(world_pos.x) < min_axis_line_dist.x) {
+//   //   curr_color.xyz = vec3(1.0,0.0,0.0);
+//   // }
+//   // if(abs(world_pos.z) < min_axis_line_dist.y) {
+//   //   curr_color.xyz = vec3(0.0,0.0,1.0);
+//   // }
+//   // return vec4(curr_color,draw_line);
+// }
+
+// void main() {
+//     float t = -near_point.y / (far_point.y - near_point.y);
+//     vec3 world_pos = near_point + t * (far_point - near_point);
+//     float depth_clip = compute_depth(world_pos);
+//     gl_FragDepth = depth_clip * set_depth;
+//     // float linear_depth_01 = compute_linear_depth01(depth_clip * 2.0 - 1.0);
+//     // float depth_fading = (1.0 / max_depth) * max(0.0, max_depth - linear_depth_01);
+//     float draw_plane = float(t>0.0);
+//     float depth_fading = 1.0;
+//     vec4 grid1 = draw_grid(world_pos,grid_size,grid_thickness1,true);
+//     // vec4 grid2 = draw_grid(world_pos,grid_size * grid_size_scale,grid_thickness2,true);
+
+//     // vec4 color = 0.5 * (grid1 + grid2);
+//     vec4 color = grid1;
+    
+//     out_color = vec4(draw_plane * depth_fading * color.xyz, 1.0);
+// }
+// )";
 
 Shader get_grid_shader() { return Shader{grid_vs, grid_fs}; }

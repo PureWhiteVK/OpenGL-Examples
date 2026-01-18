@@ -180,11 +180,6 @@ int main() {
 
   glm::mat4 rotation = glm::mat4(1.0f);
 
-  bool show_demo_window = true;
-  bool show_another_window = false;
-  bool draw_grid = true;
-  glm::vec4 clear_color{0.45f, 0.55f, 0.60f, 1.00f};
-
   GLuint dummy_vao{};
   glGenVertexArrays(1, &dummy_vao);
   DEFER({ glDeleteVertexArrays(1, &dummy_vao); });
@@ -211,6 +206,19 @@ int main() {
     }
   });
 
+  bool show_demo_window = false;
+  bool show_another_window = false;
+  bool draw_grid = true;
+  glm::vec4 clear_color{0.45f, 0.55f, 0.60f, 1.00f};
+  glm::vec3 grid_color{0.1f, 0.1f, 0.1f};
+  bool set_depth = true;
+  float max_depth = 0.5f;
+  // int grid_mode = 0;
+  float grid_size = 0.5;
+  float minor_grid_scale = 5;
+  float grid_fade_size = 5.0;
+  float grid_thickness = 2.0;
+
   TransformComponent trans_component{};
 
   window.add_render_callback([&](Window &window) {
@@ -236,6 +244,22 @@ int main() {
       ImGui::Checkbox("Demo Window", &show_demo_window);
 
       ImGui::Checkbox("Draw Grid", &draw_grid);
+
+      ImGui::SliderFloat("Grid Size", &grid_size, 0.1f, 5.0f);
+      ImGui::SliderFloat("Grid Thickness", &grid_thickness, 0.0f, 20.0f);
+      ImGui::SliderFloat("Minor Grid Scale", &minor_grid_scale, 2.0f, 20.0f);
+      ImGui::SliderFloat("Grid Fade Size", &grid_fade_size, 0.0f, 20.0f);
+
+      ImGui::SliderFloat("Max Grid Depth", &max_depth, 0.0f, 1.0f);
+      ImGui::Checkbox("Set Grid Depth", &set_depth);
+      // ImGui::RadioButton("clip mode", &grid_mode, 0);
+      // ImGui::SameLine();
+      // ImGui::RadioButton("mix mode", &grid_mode, 1);
+      // ImGui::SameLine();
+      // ImGui::RadioButton("smoothstep mode", &grid_mode, 2);
+      // ImGui::SameLine();
+      // ImGui::RadioButton("aa mode", &grid_mode, 3);
+      ImGui::ColorEdit3("Grid Color", glm::value_ptr(grid_color));
 
       for (int i = 0; i < model_pos.size(); i++) {
         std::string label = fmt::format("model position [{:02}]", i);
@@ -335,7 +359,19 @@ int main() {
       grid_shader.set_uniform("inv_view_proj", inv_view_proj);
       grid_shader.set_uniform("near", near);
       grid_shader.set_uniform("far", far);
+      grid_shader.set_uniform("set_depth", static_cast<float>(set_depth));
+      grid_shader.set_uniform("max_depth", max_depth);
+      grid_shader.set_uniform("grid_color", grid_color);
+      grid_shader.set_uniform("grid_size", grid_size);
+      grid_shader.set_uniform("minor_grid_scale", minor_grid_scale);
+      grid_shader.set_uniform("grid_fade_size", grid_fade_size);
+      grid_shader.set_uniform("grid_thickness", grid_thickness);
 
+
+      // grid_shader.set_uniform("use_clip", grid_mode == 0 ? 1.0f : 0.0f);
+      // grid_shader.set_uniform("use_mix", grid_mode == 1 ? 1.0f : 0.0f);
+      // grid_shader.set_uniform("use_smoothstep", grid_mode == 2 ? 1.0f : 0.0f);
+      // grid_shader.set_uniform("use_aa", grid_mode == 3 ? 1.0f : 0.0f);
       glBindVertexArray(dummy_vao);
       glDrawArrays(GL_TRIANGLES, 0, 3);
     }
@@ -343,13 +379,8 @@ int main() {
     camera->draw_indicator();
   });
 
-  
-
   // shader toy like fragment shader set up
-  window.add_render_callback([&](Window& window){
-    glClearColor(0, 0, 0, 1);
-
-  });
+  window.add_render_callback([&](Window &window) { glClearColor(0, 0, 0, 1); });
   window.run();
   return 0;
 }
