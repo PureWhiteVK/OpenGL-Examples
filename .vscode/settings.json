@@ -15,4 +15,7 @@
     ],
     "cmake.exportCompileCommandsFile": true,
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "cmake.enableAutomaticKitScan": true,
+    "cmake.useVsDeveloperEnvironment": "auto",
+    "cmake.showSystemKits": true,
 }

@@ -64,7 +64,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     imgui::imgui_stdlib 
     imgui::imgui_glfw_opengl3
     nfd::nfd
-    uv
+    libuv::uv_a
 )
 
 add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS ${PROJECT_NAME})
