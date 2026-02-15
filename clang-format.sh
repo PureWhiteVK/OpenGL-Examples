@@ -1,0 +1,1 @@
+git ls-files "*.cpp" "*.hpp" "*.h" "*.c" | xargs -P 8 clang-format -i

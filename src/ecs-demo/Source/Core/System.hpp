@@ -3,9 +3,7 @@
 #include "Types.hpp"
 #include <set>
 
-
-class System
-{
+class System {
 public:
-	std::set<Entity> mEntities;
+  std::set<Entity> mEntities;
 };
